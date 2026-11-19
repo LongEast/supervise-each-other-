@@ -1,0 +1,38 @@
+{
+  "name": "buddy-pet",
+  "productName": "Buddy Pet",
+  "version": "0.1.0",
+  "private": true,
+  "description": "桌面小狗：和搭子互相监督学习",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "cd ../tests && node --test",
+    "dist": "electron-builder --win nsis portable"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "electron": "^33.4.11",
+    "electron-builder": "^26.18.0"
+  },
+  "build": {
+    "appId": "com.buddypet.app",
+    "productName": "Buddy Pet",
+    "files": [
+      "**/*",
+      "!dist/**"
+    ],
+    "win": {
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "directories": {
+      "output": "dist"
+    }
+  }
+}

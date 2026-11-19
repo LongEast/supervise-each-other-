@@ -1,0 +1,9 @@
+/* 只读的计划 / 复盘（「查看 TA 的计划」窗口和设置页的历史共用） */
+.jv-item { display: flex; gap: 8px; padding: 4px 0; align-items: baseline; }
+.jv-mark { flex: none; width: 16px; text-align: center; font-weight: 700; color: #b9b1a7; }
+.jv-mark.yes { color: #4c9a6a; }
+.jv-mark.no { color: #e0703f; }
+.jv-text { word-break: break-all; }
+.jv-reason, .jv-improve { color: #8b847c; font-size: 12px; word-break: break-all; }
+.jv-improve { margin-top: 6px; padding-top: 6px; border-top: 1px dashed #e6dfd6; }
+.jv-empty { color: #8b847c; padding: 4px 0; }

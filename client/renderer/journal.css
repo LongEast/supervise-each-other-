@@ -1,0 +1,44 @@
+/* 今日计划 / 今日复盘 / 查看 TA 的计划：配色、字体、圆角沿用 settings.html */
+* { box-sizing: border-box; }
+body { margin: 0; font-family: "Microsoft YaHei UI", "Segoe UI", "PingFang SC", system-ui, sans-serif; background: #faf7f2; color: #2e2a26; font-size: 13px; }
+main { padding: 20px 24px 24px; }
+h1 { font-size: 18px; margin: 0 0 4px; }
+.sub { color: #8b847c; margin: 0 0 14px; }
+.hidden { display: none !important; }
+
+.card { border: 1px solid #e6dfd6; border-radius: 12px; background: #fff; padding: 6px 14px; margin-bottom: 10px; }
+.item { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid #f3ede5; flex-wrap: wrap; }
+.item:last-child { border-bottom: 0; }
+.item .num { color: #8b847c; width: 18px; text-align: right; flex: none; }
+.item .text { flex: 1; min-width: 0; word-break: break-all; }
+.item input[type=text] { flex: 1; min-width: 0; }
+.item input[type=checkbox] { width: 16px; height: 16px; margin: 0 1px; accent-color: #4c9a6a; flex: none; cursor: pointer; }
+.item.done input[type=text] { color: #8b847c; text-decoration: line-through; }
+/* 原因单独占一行（选择器要比上面的 input[type=text] 更具体，否则会被挤到同一行） */
+.item input[type=text].reason { flex: 1 0 100%; }
+
+input[type=text], textarea {
+  width: 100%; font: inherit; color: inherit; border: 1px solid #e0d8ce; border-radius: 8px; padding: 7px 9px; background: #fff; outline: none;
+}
+input[type=text]:focus, textarea:focus { border-color: #e5a96a; }
+input[type=text].err { border-color: #e0703f; background: #fff6f1; }
+textarea { min-height: 60px; resize: vertical; line-height: 1.5; }
+label { display: block; margin: 12px 0 4px; color: #5c554e; }
+
+button { font: inherit; border-radius: 9px; padding: 8px 18px; cursor: pointer; border: 1px solid #2e2a26; background: #2e2a26; color: #fff; }
+button.ghost { background: #fff; color: #2e2a26; border-color: #e0d8ce; }
+button.small { padding: 5px 12px; font-size: 12px; }
+button.x { padding: 2px 7px; border-color: transparent; background: transparent; color: #8b847c; flex: none; }
+button.x:hover { color: #b5532a; }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* 完成 / 没完成 */
+.seg { display: flex; flex: none; border: 1px solid #e0d8ce; border-radius: 9px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; background: #fff; color: #8b847c; padding: 5px 11px; font-size: 12px; white-space: nowrap; }
+.seg button + button { border-left: 1px solid #e0d8ce; }
+.seg button.yes.on { background: #e3f4e9; color: #2f7a4f; font-weight: 700; }
+.seg button.no.on { background: #fde9df; color: #b5532a; font-weight: 700; }
+
+.actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 16px; }
+#msg { color: #2f7a4f; }
+#msg.err { color: #b5532a; }

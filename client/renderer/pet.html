@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:" />
+  <title>Buddy Pet</title>
+  <link rel="stylesheet" href="pet.css" />
+</head>
+<body>
+  <div id="stage">
+    <!-- 气泡区：收到戳一戳 / 自我提醒 -->
+    <div id="bubble" class="bubble hit hidden"></div>
+
+    <!-- 悬停信息卡 -->
+    <div id="card" class="card hit hidden">
+      <div class="card-head">
+        <span id="cardName" class="card-name">搭子</span>
+        <span id="cardBadge" class="badge">—</span>
+      </div>
+      <div id="cardWhat" class="card-what">—</div>
+      <div id="cardStreak" class="card-streak hidden"></div>
+      <div class="bar"><span id="barStudy" class="seg study"></span><span id="barSlack" class="seg slack"></span></div>
+      <div class="card-stats"><span id="statStudy">学习 0m</span><span id="statSlack">摸鱼 0m</span></div>
+      <div id="cardPlan" class="card-plan hidden"></div>
+      <div id="cardHint" class="card-hint">点我戳 TA 一下</div>
+    </div>
+
+    <!-- 点击菜单：戳一戳 -->
+    <div id="menu" class="menu hit hidden">
+      <div class="menu-title">戳 <b id="menuName">TA</b> 一下</div>
+      <div class="presets">
+        <button data-text="别摸鱼了！快回去学习 📚">别摸鱼了！</button>
+        <button data-text="在干嘛呢？👀">在干嘛呢？</button>
+        <button data-text="一起专注 25 分钟？🍅">一起专注 25min？</button>
+        <button data-text="加油！你可以的 💪">加油 💪</button>
+      </div>
+      <form id="customForm" class="custom">
+        <input id="customText" maxlength="140" placeholder="自定义一句话…" autocomplete="off" />
+        <button type="submit">发送</button>
+      </form>
+      <div id="menuMsg" class="menu-msg"></div>
+      <a href="#" id="journalLink" class="menu-link">📋 查看 TA 的今日计划/复盘</a>
+      <div class="menu-foot">
+        <a href="#" id="pauseLink">暂停分享我的状态</a>
+        <a href="#" id="settingsLink">设置</a>
+        <a href="#" id="closeLink">关闭</a>
+      </div>
+    </div>
+
+    <!-- 小狗 -->
+    <div id="petWrap" class="state-offline">
+      <svg id="pet" class="hit" viewBox="0 0 160 140" xmlns="http://www.w3.org/2000/svg" aria-label="搭子小狗">
+        <ellipse cx="80" cy="132" rx="48" ry="6" class="shadow" />
+        <g class="pup">
+          <g class="tail"><path d="M112 104 C130 100 134 82 124 74 C120 86 114 94 104 96 Z" class="fur-dark" /></g>
+          <ellipse cx="80" cy="102" rx="38" ry="30" class="fur" />
+          <ellipse cx="80" cy="108" rx="22" ry="20" class="belly" />
+          <ellipse cx="64" cy="128" rx="10" ry="6" class="fur" />
+          <ellipse cx="96" cy="128" rx="10" ry="6" class="fur" />
+          <g class="head">
+            <path d="M44 40 C30 44 28 72 40 80 C46 70 48 56 52 46 Z" class="fur-dark ear ear-l" />
+            <path d="M116 40 C130 44 132 72 120 80 C114 70 112 56 108 46 Z" class="fur-dark ear ear-r" />
+            <ellipse cx="80" cy="58" rx="38" ry="33" class="fur" />
+            <ellipse cx="80" cy="72" rx="19" ry="13" class="belly" />
+            <circle cx="56" cy="70" r="6" class="blush" />
+            <circle cx="104" cy="70" r="6" class="blush" />
+            <g class="eyes-open">
+              <g class="eye"><circle cx="66" cy="56" r="5" class="ink" /><circle cx="67.6" cy="54.2" r="1.6" class="shine" /></g>
+              <g class="eye"><circle cx="94" cy="56" r="5" class="ink" /><circle cx="95.6" cy="54.2" r="1.6" class="shine" /></g>
+              <rect x="59" y="49" width="14" height="6" class="lid fur" />
+              <rect x="87" y="49" width="14" height="6" class="lid fur" />
+            </g>
+            <g class="eyes-closed">
+              <path d="M61 57 Q66 61 71 57" class="ink-line" />
+              <path d="M89 57 Q94 61 99 57" class="ink-line" />
+            </g>
+            <ellipse cx="80" cy="66" rx="4.5" ry="3.2" class="ink" />
+            <path d="M80 69 L80 73 M80 73 Q76 77 73 74 M80 73 Q84 77 87 74" class="ink-line thin" />
+          </g>
+          <!-- 学习：小电脑 -->
+          <g class="prop prop-laptop">
+            <path d="M60 104 L100 104 L104 124 L56 124 Z" class="laptop-screen" />
+            <rect x="50" y="123" width="60" height="5" rx="2" class="laptop-base" />
+            <circle cx="80" cy="114" r="2" class="laptop-logo" />
+          </g>
+          <!-- 摸鱼：手机 -->
+          <g class="prop prop-phone">
+            <rect x="92" y="96" width="14" height="24" rx="3" class="phone" />
+            <rect x="94" y="99" width="10" height="16" rx="1.5" class="phone-glow" />
+          </g>
+        </g>
+        <!-- 睡觉：Zzz -->
+        <g class="prop prop-zzz">
+          <text x="118" y="34" class="z z1">Z</text>
+          <text x="130" y="22" class="z z2">z</text>
+          <text x="140" y="12" class="z z3">z</text>
+        </g>
+      </svg>
+      <div id="nametag" class="nametag hit"><span id="dot" class="dot"></span><span id="nameText">未连接</span></div>
+    </div>
+  </div>
+  <script src="pet.js"></script>
+</body>
+</html>

@@ -1,0 +1,212 @@
+:root {
+  --fur: #f2c38b;
+  --fur-dark: #c98b54;
+  --belly: #fff1dc;
+  --ink: #3a2a20;
+  --blush: #f7a7a0;
+  --study: #4c9a6a;
+  --slack: #e0703f;
+  --neutral: #8a8f98;
+  --card-bg: rgba(255, 252, 247, 0.97);
+  --card-ink: #2e2a26;
+  --muted: #8b847c;
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  font-family: "Microsoft YaHei UI", "Segoe UI", "PingFang SC", system-ui, sans-serif;
+  user-select: none;
+}
+#stage { position: relative; width: 100%; height: 100%; }
+.hidden { display: none !important; }
+
+/* ---------------- 小狗 ---------------- */
+#petWrap {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 150px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+#pet { width: 150px; height: 131px; cursor: pointer; overflow: visible; }
+.shadow { fill: rgba(0, 0, 0, 0.16); }
+.fur { fill: var(--fur); }
+.fur-dark { fill: var(--fur-dark); }
+.belly { fill: var(--belly); }
+.blush { fill: var(--blush); opacity: 0.55; }
+.ink { fill: var(--ink); }
+.shine { fill: #fff; }
+.ink-line { fill: none; stroke: var(--ink); stroke-width: 2.6; stroke-linecap: round; }
+.ink-line.thin { stroke-width: 2; }
+.lid { display: none; }
+
+.pup, .head, .tail, .eye { transform-box: fill-box; }
+.pup { transform-origin: 50% 100%; transition: transform 0.35s ease; }
+.head { transform-origin: 50% 90%; }
+.tail { transform-origin: 0% 100%; animation: wag 1.6s ease-in-out infinite; }
+.eye { transform-origin: 50% 50%; animation: blink 5s infinite; }
+
+.prop, .eyes-closed { display: none; }
+.laptop-screen { fill: #5b6472; }
+.laptop-base { fill: #8d96a3; }
+.laptop-logo { fill: #a9e3ff; }
+.phone { fill: #333a44; }
+.phone-glow { fill: #8fd3ff; animation: glow 1.2s ease-in-out infinite alternate; }
+.z { fill: #6b7a99; font: bold 14px "Segoe UI", sans-serif; opacity: 0; }
+
+#pet:hover .pup { transform: translateY(-3px); }
+
+/* 学习中：抱着电脑、点头 */
+.state-study .prop-laptop { display: inline; }
+.state-study .head { animation: nod 1.4s ease-in-out infinite; }
+.state-study .tail { animation-duration: 2.4s; }
+
+/* 摸鱼中：歪着、玩手机、眯眼、尾巴狂摇 */
+.state-slack .prop-phone { display: inline; }
+.state-slack .pup { transform: rotate(-9deg) translateY(4px); }
+.state-slack .lid { display: inline; }
+.state-slack .tail { animation-duration: 0.45s; }
+.state-slack .shadow { rx: 54; }
+
+/* 离开：睡觉 */
+.state-away .eyes-open, .state-paused .eyes-open, .state-offline .eyes-open { display: none; }
+.state-away .eyes-closed, .state-paused .eyes-closed, .state-offline .eyes-closed { display: inline; }
+.state-away .prop-zzz { display: inline; }
+.state-away .tail, .state-offline .tail, .state-paused .tail { animation: none; }
+.state-away .pup { animation: breathe 3s ease-in-out infinite; }
+.state-away .z1 { animation: zfloat 3s infinite 0s; }
+.state-away .z2 { animation: zfloat 3s infinite 0.6s; }
+.state-away .z3 { animation: zfloat 3s infinite 1.2s; }
+
+/* 离线 / 暂停 */
+.state-offline #pet { filter: grayscale(1); opacity: 0.55; }
+.state-paused #pet { filter: saturate(0.5); opacity: 0.8; }
+
+/* 被戳 / 戳人时的动作 */
+.shake .pup { animation: shake 0.5s ease-in-out 2; }
+.jump .pup { animation: jump 0.55s ease-out; }
+
+@keyframes wag { 0%, 100% { transform: rotate(-8deg); } 50% { transform: rotate(14deg); } }
+@keyframes blink { 0%, 94%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } }
+@keyframes nod { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(3deg) translateY(1px); } }
+@keyframes glow { from { opacity: 0.7; } to { opacity: 1; } }
+@keyframes breathe { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.97); } }
+@keyframes zfloat { 0% { opacity: 0; transform: translateY(6px); } 30% { opacity: 1; } 100% { opacity: 0; transform: translateY(-8px); } }
+@keyframes shake { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-9deg); } 75% { transform: rotate(9deg); } }
+@keyframes jump { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-14px); } }
+
+/* ---------------- 名牌（可拖动） ---------------- */
+.nametag {
+  cursor: move;
+  margin-top: -2px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(46, 42, 38, 0.82);
+  color: #fff;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 150px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--neutral); flex: none; }
+.dot.study { background: #6fd394; }
+.dot.slack { background: #ff9a62; }
+.dot.away, .dot.paused { background: #9aa6c4; }
+.dot.offline { background: #5c5c5c; }
+
+/* ---------------- 卡片 / 菜单 / 气泡 ---------------- */
+.card, .menu, .bubble {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 152px;
+  width: 248px;
+  background: var(--card-bg);
+  color: var(--card-ink);
+  border-radius: 14px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  padding: 10px 12px;
+  font-size: 12.5px;
+  animation: pop 0.18s ease-out;
+}
+@keyframes pop { from { opacity: 0; transform: translateX(-50%) translateY(6px); } }
+
+.card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.card-name { font-weight: 700; font-size: 14px; }
+.badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #eee; color: #555; }
+.badge.study { background: #e3f4e9; color: var(--study); }
+.badge.slack { background: #fde9df; color: var(--slack); }
+.badge.away, .badge.paused { background: #e8ecf5; color: #5f6f94; }
+.card-what { color: var(--card-ink); margin-bottom: 6px; word-break: break-all; }
+.card-streak { color: var(--slack); font-weight: 600; margin-bottom: 6px; }
+.bar { display: flex; height: 6px; border-radius: 3px; background: #eee; overflow: hidden; margin-bottom: 4px; }
+.seg.study { background: var(--study); }
+.seg.slack { background: var(--slack); }
+.card-stats { display: flex; justify-content: space-between; color: var(--muted); font-size: 11.5px; }
+.card-plan { margin-top: 6px; padding-top: 6px; border-top: 1px dashed #e6dfd6; color: var(--muted); }
+.card-plan.has { color: var(--study); font-weight: 600; }
+.card-hint { margin-top: 6px; color: var(--muted); font-size: 11px; text-align: center; }
+
+.menu-title { font-size: 13px; margin-bottom: 8px; }
+.presets { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+.menu button {
+  font: inherit;
+  font-size: 12px;
+  border: 1px solid #e6dfd6;
+  background: #fff;
+  color: var(--card-ink);
+  border-radius: 9px;
+  padding: 6px 4px;
+  cursor: pointer;
+}
+.menu button:hover:not(:disabled) { background: #fff4e8; border-color: #f2c38b; }
+.menu button:disabled { opacity: 0.45; cursor: not-allowed; }
+.custom { display: flex; gap: 6px; }
+.custom input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 12px;
+  border: 1px solid #e6dfd6;
+  border-radius: 9px;
+  padding: 6px 8px;
+  outline: none;
+  user-select: text;
+}
+.custom input:focus { border-color: #f2c38b; }
+.custom button { padding: 6px 10px; background: #2e2a26; color: #fff; border-color: #2e2a26; }
+.custom button:hover:not(:disabled) { background: #000; color: #fff; }
+.menu-msg { min-height: 16px; margin-top: 6px; font-size: 11.5px; color: var(--muted); }
+.menu-msg.ok { color: var(--study); }
+.menu-msg.err { color: var(--slack); }
+.menu-link { display: block; margin: 2px 0 8px; padding: 6px 8px; border-radius: 9px; background: #f6f1ea; color: var(--card-ink); text-decoration: none; font-size: 12px; text-align: center; }
+.menu-link:hover { background: #fff4e8; }
+.menu-foot { display: flex; justify-content: space-between; margin-top: 2px; font-size: 11px; }
+.menu-foot a { color: var(--muted); text-decoration: none; }
+.menu-foot a:hover { color: var(--card-ink); text-decoration: underline; }
+
+.bubble { font-size: 13px; line-height: 1.45; cursor: pointer; }
+.bubble::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  transform: translateX(-50%) rotate(45deg);
+  width: 14px;
+  height: 14px;
+  background: var(--card-bg);
+}
+.bubble b { color: var(--slack); }
+.bubble .sub { display: block; margin-top: 3px; font-size: 11px; color: var(--muted); }
+.bubble.self { border: 1.5px solid #f6c9b0; }

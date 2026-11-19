@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Buddy Pet 网站助手",
+  "version": "0.1.0",
+  "description": "把当前标签页的域名告诉本机的 Buddy Pet 小狗（只发域名，只发到本机 127.0.0.1）。",
+  "permissions": ["tabs", "alarms"],
+  "host_permissions": ["http://127.0.0.1:17321/*"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_popup": "popup.html", "default_title": "Buddy Pet" },
+  "icons": { "16": "icon16.png", "48": "icon48.png", "128": "icon128.png" }
+}

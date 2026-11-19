@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'" />
+  <title>今日计划</title>
+  <link rel="stylesheet" href="journal.css" />
+  <link rel="stylesheet" href="journal-view.css" />
+</head>
+<body>
+  <main>
+    <h1 id="title">📝 今日计划</h1>
+    <p id="sub" class="sub"></p>
+    <div id="list" class="card"></div>
+    <button type="button" class="ghost small hidden" id="addBtn">＋ 加一条</button>
+    <div id="improveBox" class="hidden">
+      <label for="improve">明天想改进的地方（可选）</label>
+      <textarea id="improve" maxlength="200" placeholder="比如：先做最难的那件事"></textarea>
+    </div>
+    <div class="actions">
+      <button type="button" class="hidden" id="saveBtn">保存计划</button>
+      <button type="button" class="ghost hidden" id="snoozeBtn">15 分钟后再提醒</button>
+      <span id="msg"></span>
+    </div>
+  </main>
+  <script src="journal-view.js"></script>
+  <script src="journal.js"></script>
+</body>
+</html>

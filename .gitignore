@@ -1,0 +1,5 @@
+node_modules/
+dist/
+
+# Windows 把文件拷进 WSL 时留下的下载来源标记
+*:Zone.Identifier
