@@ -1,0 +1,10 @@
+# Render 一键部署配置：只部署 server/ 里的中转服务器
+services:
+  - type: web
+    name: buddy-pet-relay
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /
