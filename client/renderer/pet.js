@@ -100,6 +100,33 @@ function whatText(v) {
 }
 
 // ---------- 渲染 ----------
+// 今日学习 / 摸鱼：自己那行一直有（没连上、暂停分享时也有）；搭子在线且在分享状态时再加一行。
+// 两行的进度条用同一个刻度，谁长谁短一眼能比出来。
+function renderStats(v) {
+  const rows = [{ who: '我', t: state?.me?.todaySec || { study: 0, slack: 0 } }];
+  if (v.name && v.key !== 'offline' && v.status?.todaySec) rows.push({ who: v.name, t: v.status.todaySec });
+  const scale = Math.max(1, ...rows.map((r) => r.t.study + r.t.slack));
+  const el = (cls, text = '') => {
+    const d = document.createElement('span');
+    d.className = cls;
+    d.textContent = text; // 名字是对方填的，只当文本
+    return d;
+  };
+  const box = $('cardStats');
+  box.replaceChildren(el('stats-head', '今日'), el(''), el('stats-head num', '学习'), el('stats-head num', '摸鱼'));
+  for (const r of rows) {
+    const bar = el('bar');
+    for (const k of ['study', 'slack']) {
+      const seg = el(`seg ${k}`);
+      seg.style.width = `${(r.t[k] / scale) * 100}%`;
+      bar.append(seg);
+    }
+    const who = el('stats-who', r.who);
+    who.title = r.who;
+    box.append(who, bar, el('stats-num study', fmtDur(r.t.study)), el('stats-num slack', fmtDur(r.t.slack)));
+  }
+}
+
 function render() {
   const v = friendView();
   const wrap = $('petWrap');
@@ -131,12 +158,7 @@ function render() {
     $('cardWhat').textContent = v.name ? whatText(v) : '把房间号和密码发给你的朋友吧';
     $('cardHint').textContent = v.name && v.key !== 'offline' ? '点我戳 TA 一下' : '';
   }
-  const t = v.status?.todaySec || { study: 0, slack: 0, neutral: 0 };
-  const total = Math.max(1, t.study + t.slack + t.neutral);
-  $('barStudy').style.width = `${(t.study / total) * 100}%`;
-  $('barSlack').style.width = `${(t.slack / total) * 100}%`;
-  $('statStudy').textContent = `今日学习 ${fmtDur(t.study)}`;
-  $('statSlack').textContent = `摸鱼 ${fmtDur(t.slack)}`;
+  renderStats(v);
   const streak = v.status?.slackStreakSec || 0;
   const streakEl = $('cardStreak');
   if (v.key === 'slack' && streak >= 300) {

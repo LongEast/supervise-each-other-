@@ -92,7 +92,7 @@ let selfAlertIdx = 0;
 
 function viewState() {
   return {
-    me: { name: config.name, status: tracker.getStatus() },
+    me: { name: config.name, status: tracker.getStatus(), todaySec: tracker.todaySec() }, // todaySec 只给自己看，暂停分享时也有
     friend,
     friendJournal: friend ? progress(journal.friendToday(friend.name, friend.online)) : null, // { total, done, reviewed }，没写计划是 null
     connection: { state: relay.state, error: relay.lastError },

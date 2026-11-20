@@ -87,6 +87,18 @@ test('隐私应用不上报名字和域名', (t) => {
   assert.deepEqual([tr.getStatus().category, tr.getStatus().app, tr.getStatus().domain], ['private', '', null]);
 });
 
+test('暂停分享时自己仍然看得到今天的累计（todaySec 不依赖分享状态）', (t) => {
+  const tr = makeTracker(t);
+  const t0 = Date.now();
+  tr.onSample({ proc: 'Code', title: '', idleMs: 0 }, t0);
+  tr.onSample({ proc: 'Code', title: '', idleMs: 0 }, t0 + 4000);
+  tr.setPaused(true);
+  assert.deepEqual(tr.getStatus(), { paused: true });
+  assert.deepEqual(tr.todaySec(), { study: 4, slack: 0, neutral: 0 });
+  tr.setPaused(false);
+  assert.deepEqual(tr.getStatus().todaySec, tr.todaySec());
+});
+
 test('暂停分享：只发 paused，不计时；状态变化触发 change', (t) => {
   const tr = makeTracker(t);
   const changes = [];

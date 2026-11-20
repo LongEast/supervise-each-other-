@@ -175,17 +175,22 @@ class ActivityTracker extends EventEmitter {
     if (changed) this.emit('change', this.getStatus());
   }
 
+  /** 今天累计的学习 / 摸鱼 / 其他秒数。暂停分享时也拿得到：只在本机显示给自己看 */
+  todaySec() {
+    const r = (n) => Math.round(n);
+    return { study: r(this.today.sec.study), slack: r(this.today.sec.slack), neutral: r(this.today.sec.neutral) };
+  }
+
   /** 发给对方的状态（不含窗口标题） */
   getStatus() {
     if (this.paused) return { paused: true };
-    const r = (n) => Math.round(n);
     return {
       paused: false,
       category: this.current.category,
       app: this.current.app,
       domain: this.current.domain,
-      todaySec: { study: r(this.today.sec.study), slack: r(this.today.sec.slack), neutral: r(this.today.sec.neutral) },
-      slackStreakSec: r(this.slackStreakSec),
+      todaySec: this.todaySec(),
+      slackStreakSec: Math.round(this.slackStreakSec),
     };
   }
 
