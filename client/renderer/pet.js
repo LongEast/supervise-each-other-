@@ -17,6 +17,7 @@ let cooldownUntil = 0;
 let ignoring = true;
 document.addEventListener('mousemove', (e) => {
   if (dragging) return buddy.dragPet('move');
+  if (pressAt && Math.hypot(e.screenX - pressAt.x, e.screenY - pressAt.y) > DRAG_THRESHOLD) return startDrag();
   const over = !!e.target.closest('.hit');
   if (over === !ignoring) return;
   ignoring = !over;
@@ -29,21 +30,47 @@ document.addEventListener('mouseleave', () => {
   }
 });
 
-// ---------- 拖动名牌移动小狗 ----------
-// 不能用 -webkit-app-region: drag：Windows 上鼠标进入拖动区会触发 mouseleave，窗口立刻变回穿透，名牌根本抓不住
+// ---------- 拖动：按住小狗或名牌就能拖 ----------
+// 不能用 -webkit-app-region: drag：Windows 上鼠标进入拖动区会触发 mouseleave，窗口立刻变回穿透，根本抓不住
+const DRAG_THRESHOLD = 4; // 按住小狗移动超过这么多像素才算拖动，不然还是点击（打开菜单）
 let dragging = false;
-$('nametag').addEventListener('mousedown', (e) => {
-  if (e.button !== 0) return;
+let pressAt = null; // 在小狗身上按下了，还不知道是点击还是拖动
+let dragJustEnded = false; // 拖完松手时浏览器还会补一个 click，要忽略掉
+function startDrag() {
+  pressAt = null;
   dragging = true;
+  document.body.classList.add('dragging');
   buddy.dragPet('start');
+  updateOverlays(); // 拖的时候先把卡片收起来
+}
+$('nametag').addEventListener('mousedown', (e) => {
+  if (e.button === 0) startDrag();
+});
+$('pet').addEventListener('mousedown', (e) => {
+  if (e.button === 0) pressAt = { x: e.screenX, y: e.screenY };
 });
 function endDrag() {
+  pressAt = null;
   if (!dragging) return;
   dragging = false;
+  document.body.classList.remove('dragging');
   buddy.dragPet('end');
+  dragJustEnded = true;
+  setTimeout(() => (dragJustEnded = false), 50);
+  updateOverlays();
 }
 window.addEventListener('mouseup', endDrag);
 window.addEventListener('blur', endDrag);
+
+// ---------- 缩放：在小狗身上滚滚轮 ----------
+$('pet').addEventListener(
+  'wheel',
+  (e) => {
+    e.preventDefault();
+    if (e.deltaY) buddy.scalePet(e.deltaY < 0 ? 1 : -1); // 往上滚放大
+  },
+  { passive: false }
+);
 
 // ---------- 工具 ----------
 function fmtDur(sec) {
@@ -176,6 +203,7 @@ function renderDetail(v) {
 }
 
 function render() {
+  document.documentElement.style.setProperty('--pet-scale', String(state?.petScale || 1));
   const v = friendView();
   const wrap = $('petWrap');
   wrap.className = `state-${v.key === 'private' || v.key === 'neutral' ? 'neutral' : v.key}`;
@@ -230,7 +258,7 @@ function render() {
 function updateOverlays() {
   const bubbleShown = !$('bubble').classList.contains('hidden');
   $('menu').classList.toggle('hidden', !menuOpen);
-  const overlay = hovering && !menuOpen && !bubbleShown;
+  const overlay = hovering && !menuOpen && !bubbleShown && !dragging;
   $('card').classList.toggle('hidden', !(overlay && !detail));
   $('detail').classList.toggle('hidden', !(overlay && detail));
 }
@@ -291,6 +319,7 @@ $('detailBack').addEventListener('click', (e) => {
   updateOverlays();
 });
 $('pet').addEventListener('click', () => {
+  if (dragJustEnded) return; // 刚才是拖动，不是点击
   hideBubble();
   detail = null;
   if (state?.connection?.state !== 'online') return buddy.openSettings();

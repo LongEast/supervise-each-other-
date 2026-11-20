@@ -6,6 +6,7 @@ const path = require('path');
 const { ActivityTracker, localDate } = require('./activity');
 const { RelayClient } = require('./relay');
 const { DEFAULT_RULES } = require('./classifier');
+const { clampScale, petSize, rescaleBounds, SCALE_STEP } = require('./pet-geometry');
 const { JournalStore, JournalSync, duePrompt, markPrompted, snooze, snoozesLeft, progress, toMinutes, isDate, addDays } = require('./journal');
 
 const APP_ID = 'com.buddypet.app'; // 要和 package.json 里的 build.appId 一致
@@ -54,12 +55,13 @@ const DEFAULT_CONFIG = {
   reviewTime: '22:00', // 复盘提醒时间
   rules: DEFAULT_RULES,
   petPos: null,
+  petScale: 1, // 小狗的大小，1 = 100%
 };
 
 function loadConfig() {
   try {
     const c = JSON.parse(fs.readFileSync(configFile, 'utf8'));
-    return { ...DEFAULT_CONFIG, ...c, rules: { ...DEFAULT_RULES, ...(c.rules || {}) } };
+    return { ...DEFAULT_CONFIG, ...c, petScale: clampScale(c.petScale), rules: { ...DEFAULT_RULES, ...(c.rules || {}) } };
   } catch {
     return { ...DEFAULT_CONFIG };
   }
@@ -69,6 +71,12 @@ function saveConfig() {
   fs.writeFileSync(configFile, JSON.stringify(config, null, 2));
 }
 let config = loadConfig();
+// 滚轮缩放时一格存一次太勤了，停下来再存
+let saveTimer = null;
+function saveConfigSoon() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveConfig, 500);
+}
 
 // ---------------- 状态 ----------------
 const relay = new RelayClient();
@@ -99,6 +107,7 @@ function viewState() {
     friendJournal: friend ? progress(journal.friendToday(friend.name, friend.online)) : null, // { total, done, reviewed }，没写计划是 null
     connection: { state: relay.state, error: relay.lastError },
     extConnected: tracker.extConnected(),
+    petScale: config.petScale,
   };
 }
 function pushState() {
@@ -275,15 +284,14 @@ function startExtServer() {
 }
 
 // ---------------- 窗口 ----------------
-const PET_W = 280;
-const PET_H = 380;
-
+// 窗口大小跟着小狗的缩放变，见 pet-geometry.js
 function createPetWindow() {
   const wa = screen.getPrimaryDisplay().workArea;
-  const pos = config.petPos || { x: wa.x + wa.width - PET_W - 24, y: wa.y + wa.height - PET_H };
+  const size = petSize(config.petScale);
+  const pos = config.petPos || { x: wa.x + wa.width - size.width - 24, y: wa.y + wa.height - size.height };
   petWin = new BrowserWindow({
-    width: PET_W,
-    height: PET_H,
+    width: size.width,
+    height: size.height,
     x: pos.x,
     y: pos.y,
     frame: false,
@@ -300,6 +308,22 @@ function createPetWindow() {
   petWin.loadFile(path.join(__dirname, 'renderer', 'pet.html'));
   petWin.webContents.on('did-finish-load', pushState);
   petWin.on('closed', () => (petWin = null));
+}
+
+// 调小狗的大小：窗口跟着变，小狗的脚留在原地
+function setPetScale(next) {
+  const scale = clampScale(next);
+  if (scale === config.petScale) return;
+  if (petWin && !petWin.isDestroyed()) {
+    const [x, y] = petWin.getPosition();
+    const b = rescaleBounds({ x, y }, config.petScale, scale);
+    petWin.setBounds(b);
+    config.petPos = { x: b.x, y: b.y };
+  }
+  config.petScale = scale;
+  saveConfigSoon();
+  pushState();
+  updateTray();
 }
 
 function openSettings() {
@@ -347,6 +371,15 @@ function updateTray() {
           updateTray();
         },
       },
+      {
+        label: '小狗大小（也可以在小狗身上滚滚轮）',
+        submenu: [['小', 0.75], ['标准', 1], ['大', 1.5], ['特大', 2]].map(([name, s]) => ({
+          label: `${name} ${Math.round(s * 100)}%`,
+          type: 'radio',
+          checked: config.petScale === s,
+          click: () => setPetScale(s),
+        })),
+      },
       { type: 'separator' },
       { label: `今日计划${planLabel}`, click: () => openJournal('plan') },
       { label: `明日计划${tomorrowLabel}`, click: openTomorrowPlan },
@@ -385,8 +418,8 @@ ipcMain.on('pet:drag', (_e, phase) => {
     return;
   }
   if (!dragFrom) return;
-  // 带上固定宽高：缩放不是 100% 时反复 setPosition 会让窗口越拖越大
-  petWin.setBounds({ x: dragFrom.x + cur.x - dragFrom.cx, y: dragFrom.y + cur.y - dragFrom.cy, width: PET_W, height: PET_H });
+  // 带上固定宽高：系统缩放不是 100% 时反复 setPosition 会让窗口越拖越大
+  petWin.setBounds({ x: dragFrom.x + cur.x - dragFrom.cx, y: dragFrom.y + cur.y - dragFrom.cy, ...petSize(config.petScale) });
   if (phase === 'end') {
     dragFrom = null;
     const [x, y] = petWin.getPosition();
@@ -394,6 +427,8 @@ ipcMain.on('pet:drag', (_e, phase) => {
     saveConfig();
   }
 });
+// 在小狗身上滚滚轮：dir > 0 放大一格，< 0 缩小一格
+ipcMain.on('pet:scale', (_e, dir) => setPetScale(config.petScale + (dir > 0 ? SCALE_STEP : -SCALE_STEP)));
 ipcMain.handle('poke', (_e, text) => {
   const ok = relay.send({ type: 'poke', text: String(text || '').slice(0, 140) });
   return { sent: ok, reason: ok ? '' : '还没连上服务器' };
@@ -474,7 +509,10 @@ app.on('second-instance', () => {
   openSettings();
 });
 app.on('window-all-closed', (e) => e.preventDefault()); // 托盘常驻
-app.on('before-quit', () => tracker.stop());
+app.on('before-quit', () => {
+  tracker.stop();
+  if (saveTimer) saveConfig(); // 还有没落盘的设置（刚调完大小就退出）
+});
 
 app.whenReady().then(() => {
   ensurePortableShortcut();

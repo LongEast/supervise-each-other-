@@ -9,6 +9,7 @@ const read = (f) => fs.readFileSync(path.join(__dirname, '..', 'client', f), 'ut
 test('小狗窗口不使用 -webkit-app-region: drag（会和鼠标穿透冲突，名牌抓不住）', () => {
   assert.doesNotMatch(read('renderer/pet.css'), /-webkit-app-region\s*:\s*drag/);
   assert.match(read('renderer/pet.js'), /buddy\.dragPet\('start'\)/);
+  assert.match(read('renderer/pet.js'), /\$\('pet'\)\.addEventListener\('mousedown'/); // 小狗身上也能拖，不只是名牌
   assert.match(read('preload.js'), /dragPet:/);
   assert.match(read('main.js'), /ipcMain\.on\('pet:drag'/);
 });

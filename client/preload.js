@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('buddy', {
   poke: (text) => ipcRenderer.invoke('poke', text),
   setIgnoreMouse: (ignore) => ipcRenderer.send('pet:ignore', ignore),
   dragPet: (phase) => ipcRenderer.send('pet:drag', phase),
+  scalePet: (dir) => ipcRenderer.send('pet:scale', dir),
   openSettings: () => ipcRenderer.send('open-settings'),
   togglePause: () => ipcRenderer.send('toggle-pause'),
   getConfig: () => ipcRenderer.invoke('config:get'),

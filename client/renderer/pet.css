@@ -10,6 +10,10 @@
   --card-bg: rgba(255, 252, 247, 0.97);
   --card-ink: #2e2a26;
   --muted: #8b847c;
+  /* 小狗的大小，主进程给。只缩放小狗本身，卡片 / 菜单 / 名牌不变；数字要和 pet-geometry.js 里的一致 */
+  --pet-scale: 1;
+  --pet-w: calc(150px * var(--pet-scale));
+  --pet-h: calc(131px * var(--pet-scale));
 }
 
 * { box-sizing: border-box; }
@@ -30,12 +34,13 @@ html, body {
   left: 50%;
   bottom: 0;
   transform: translateX(-50%);
-  width: 150px;
+  width: max(150px, var(--pet-w));
   display: flex;
   flex-direction: column;
   align-items: center;
 }
-#pet { width: 150px; height: 131px; cursor: pointer; overflow: visible; }
+#pet { width: var(--pet-w); height: var(--pet-h); cursor: pointer; overflow: visible; }
+body.dragging #pet, body.dragging .nametag { cursor: grabbing; }
 .shadow { fill: rgba(0, 0, 0, 0.16); }
 .fur { fill: var(--fur); }
 .fur-dark { fill: var(--fur-dark); }
@@ -130,7 +135,7 @@ html, body {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  bottom: 152px;
+  bottom: calc(var(--pet-h) + 21px); /* 小狗 + 名牌的高度 */
   width: 248px;
   background: var(--card-bg);
   color: var(--card-ink);
