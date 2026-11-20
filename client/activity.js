@@ -10,8 +10,12 @@ const { classify, isBrowser } = require('./classifier');
 const MAX_TICK_SEC = 10; // 睡眠/卡顿时最多算 10 秒，避免一下子加很多
 const EXT_FRESH_MS = 90_000; // 插件每 30 秒心跳一次；超过 90 秒没消息就当作插件不在了
 const ACTIVE_IDLE_MS = 60_000; // 一分钟内动过键鼠就算「正在用电脑」
-const BREAKDOWN_TOP = 8; // 明细里每类最多列几项（会跟着状态发给对方，不能太长）
+const BREAKDOWN_TOP = 8; // 小狗卡片上的明细每类最多要几项
 const BREAKDOWN_NAME_MAX = 64;
+// 跟着状态发给对方的明细：每类最多 30 项，而且总共不超过 5KB——
+// 服务器单条消息上限 8KB，超了会被直接断开，所以宁可少发几项
+const WIRE_TOP = 30;
+const WIRE_MAX_BYTES = 5000;
 
 const emptyToday = (date) => ({ date, sec: { study: 0, slack: 0, neutral: 0 }, by: { study: {}, slack: {} } });
 
@@ -192,16 +196,24 @@ class ActivityTracker extends EventEmitter {
 
   /**
    * 今天的学习 / 摸鱼时间都花在了哪：每类取时间最长的几项，只有应用名和域名（没有网址和窗口标题）。
+   * 给了 maxBytes 的话，整个结果的 JSON 超过这么多字节时，从时间最短的开始丢。
    * @returns {{study: {domain?:string, app?:string, sec:number}[], slack: {domain?:string, app?:string, sec:number}[]}}
    */
-  breakdown(limit = BREAKDOWN_TOP) {
+  breakdown(limit = BREAKDOWN_TOP, maxBytes = Infinity) {
     const top = (by) =>
       Object.entries(by)
         .map(([k, sec]) => ({ [k.startsWith('d:') ? 'domain' : 'app']: k.slice(2, 2 + BREAKDOWN_NAME_MAX), sec: Math.round(sec) }))
         .filter((e) => e.sec > 0)
         .sort((a, b) => b.sec - a.sec)
         .slice(0, limit);
-    return { study: top(this.today.by.study), slack: top(this.today.by.slack) };
+    const out = { study: top(this.today.by.study), slack: top(this.today.by.slack) };
+    while (Buffer.byteLength(JSON.stringify(out)) > maxBytes) {
+      const a = out.study.at(-1);
+      const b = out.slack.at(-1);
+      if (!a && !b) break;
+      (!b || (a && a.sec <= b.sec) ? out.study : out.slack).pop();
+    }
+    return out;
   }
 
   /** 发给对方的状态（不含窗口标题） */
@@ -213,7 +225,7 @@ class ActivityTracker extends EventEmitter {
       app: this.current.app,
       domain: this.current.domain,
       todaySec: this.todaySec(),
-      breakdown: this.breakdown(),
+      breakdown: this.breakdown(WIRE_TOP, WIRE_MAX_BYTES),
       slackStreakSec: Math.round(this.slackStreakSec),
     };
   }

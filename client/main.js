@@ -87,6 +87,7 @@ let friend = null; // { name, online, status }
 let petWin = null;
 let settingsWin = null;
 const journalWins = {}; // 'plan:2026-01-02' 这样的 key → 窗口
+let statsWin = null; // 「今日时长明细」窗口
 let tray = null;
 let selfAlertIdx = 0;
 
@@ -209,6 +210,27 @@ function openJournal(mode, { reminder = false, date = localDate() } = {}) {
   journalWins[key] = win;
 }
 
+// ---------------- 今日时长明细 ----------------
+// 小狗卡片上列不下的，在这个窗口里看全部。who: 'me' | 'friend'，cat: 'study' | 'slack'
+function openStats({ who, cat } = {}) {
+  const query = { who: who === 'friend' ? 'friend' : 'me', cat: cat === 'slack' ? 'slack' : 'study' };
+  if (statsWin && !statsWin.isDestroyed()) {
+    if (statsWin.isMinimized()) statsWin.restore();
+    statsWin.webContents.send('stats-select', query); // 已经开着：切到要看的那一页
+    return statsWin.focus();
+  }
+  statsWin = new BrowserWindow({
+    width: 440,
+    height: 600,
+    title: '今日时长明细',
+    autoHideMenuBar: true,
+    maximizable: false,
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
+  });
+  statsWin.loadFile(path.join(__dirname, 'renderer', 'stats.html'), { query });
+  statsWin.on('closed', () => (statsWin = null));
+}
+
 const openTomorrowPlan = () => openJournal('plan', { date: addDays(localDate(), 1) });
 
 // 定时检查：跨天了没有、该不该弹计划 / 复盘
@@ -329,6 +351,7 @@ function updateTray() {
       { label: `今日计划${planLabel}`, click: () => openJournal('plan') },
       { label: `明日计划${tomorrowLabel}`, click: openTomorrowPlan },
       { label: '今日复盘', click: () => openJournal('review', { date: journal.reviewDate() }) },
+      { label: '今日时长明细', click: () => openStats() },
       { type: 'separator' },
       { label: '设置…', click: openSettings },
       { type: 'separator' },
@@ -430,6 +453,15 @@ ipcMain.handle('journal:history', () => {
   const tomorrow = addDays(today, 1);
   // 明天的排在最前面，方便提前写；对方明天的计划要到那天才会收到
   return { today, days: [{ date: tomorrow, me: journalStore.load(tomorrow).me, friend: null }, ...journalStore.recent(7, today)] };
+});
+ipcMain.on('stats:open', (_e, sel) => openStats(sel || {}));
+ipcMain.handle('stats:get', () => {
+  // 自己的是本机的完整记录（暂停分享时也有）；对方的是 TA 发来的那部分，不在线或暂停分享时没有
+  const st = friend?.online ? friend.status : null;
+  return {
+    me: { todaySec: tracker.todaySec(), breakdown: tracker.breakdown(Infinity) },
+    friend: st?.todaySec ? { name: friend.name, todaySec: st.todaySec, breakdown: st.breakdown || null } : null,
+  };
 });
 ipcMain.on('toggle-pause', () => {
   tracker.setPaused(!tracker.paused);

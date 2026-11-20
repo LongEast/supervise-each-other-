@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'" />
+  <title>今日时长明细</title>
+  <link rel="stylesheet" href="stats.css" />
+</head>
+<body>
+  <main>
+    <h1>⏱ 今日时长明细</h1>
+    <p class="sub">只统计到网站域名和应用，看不到具体网页。</p>
+    <div class="tabs">
+      <div id="whoTabs" class="seg"></div>
+      <div id="catTabs" class="seg"></div>
+    </div>
+    <div id="list" class="card"></div>
+    <p id="note" class="note hidden"></p>
+  </main>
+  <script src="names.js"></script>
+  <script src="stats.js"></script>
+</body>
+</html>

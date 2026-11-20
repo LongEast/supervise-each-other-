@@ -178,7 +178,8 @@ html, body {
 .detail-back:hover { color: var(--card-ink); text-decoration: underline; }
 .detail-list { display: grid; grid-template-columns: minmax(0, 1fr) 56px auto; align-items: center; gap: 4px 8px; font-size: 12px; }
 .detail-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.detail-name.other { color: var(--muted); }
+.detail-name.other { color: var(--muted); cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; }
+.detail-name.other:hover { color: var(--card-ink); text-decoration-style: solid; }
 .detail-dur { text-align: right; color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
 .detail-note { color: var(--muted); font-size: 11.5px; line-height: 1.5; }
 

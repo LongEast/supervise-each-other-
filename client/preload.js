@@ -26,4 +26,7 @@ contextBridge.exposeInMainWorld('buddy', {
   saveJournal: (kind, journal) => ipcRenderer.invoke('journal:save', kind, journal),
   snoozeJournal: () => ipcRenderer.invoke('journal:snooze'),
   journalHistory: () => ipcRenderer.invoke('journal:history'),
+  openStats: (who, cat) => ipcRenderer.send('stats:open', { who, cat }),
+  getStats: () => ipcRenderer.invoke('stats:get'),
+  onStatsSelect: on('stats-select'),
 });

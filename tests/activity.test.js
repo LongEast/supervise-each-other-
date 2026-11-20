@@ -141,14 +141,27 @@ test('明细：能读旧版本存的 today.json（没有 by），重启后明细
   assert.deepEqual(tr._loadToday().by, { study: { 'a:Code': 5 }, slack: {} });
 });
 
-test('明细：项数和名字长度都有上限（要跟着状态发出去，服务器单条消息限 8KB）', (t) => {
+test('明细：发给对方的最多 30 项、不超过 5KB（服务器单条消息限 8KB）；本机可以拿到全部', (t) => {
   const tr = makeTracker(t);
-  for (let i = 0; i < 40; i++) tr.today.by.study[`d:${'x'.repeat(200)}${i}.edu`] = 100 + i;
-  const b = tr.breakdown();
-  assert.equal(b.study.length, 8);
-  assert.equal(b.study[0].sec, 139);
-  assert.ok(b.study.every((e) => e.domain.length <= 64));
-  assert.ok(JSON.stringify({ type: 'status', status: tr.getStatus() }).length < 2048);
+  for (let i = 0; i < 40; i++) tr.today.by.study[`d:site${i}.edu`] = 100 + i;
+  assert.equal(tr.breakdown().study.length, 8); // 小狗卡片用的默认只要前几项
+  assert.equal(tr.breakdown(Infinity).study.length, 40); // 「今日时长明细」窗口看自己的：全部
+  const wire = tr.getStatus().breakdown;
+  assert.equal(wire.study.length, 30);
+  assert.deepEqual(wire.study[0], { domain: 'site39.edu', sec: 139 });
+
+  // 名字特别长（中文一个字 3 字节）：先截到 64 个字，还超就从时间最短的开始丢
+  for (let i = 0; i < 40; i++) {
+    tr.today.by.study[`a:${'学'.repeat(200)}${i}`] = 1000 + i;
+    tr.today.by.slack[`a:${'摸'.repeat(200)}${i}`] = 2000 + i;
+  }
+  const big = tr.getStatus();
+  assert.ok(Buffer.byteLength(JSON.stringify({ type: 'status', status: big })) < 6000);
+  const all = [...big.breakdown.study, ...big.breakdown.slack];
+  assert.ok(all.length >= 10 && all.length < 60);
+  assert.ok(all.every((e) => (e.app || e.domain).length <= 64));
+  assert.deepEqual(big.breakdown.slack[0].sec, 2039); // 留下来的是时间最长的
+  assert.ok(big.breakdown.slack.length > big.breakdown.study.length);
 });
 
 test('暂停分享时自己仍然看得到今天的累计（todaySec 不依赖分享状态）', (t) => {
