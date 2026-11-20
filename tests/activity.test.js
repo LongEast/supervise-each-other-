@@ -87,6 +87,70 @@ test('隐私应用不上报名字和域名', (t) => {
   assert.deepEqual([tr.getStatus().category, tr.getStatus().app, tr.getStatus().domain], ['private', '', null]);
 });
 
+test('明细：学习 / 摸鱼时间按网站域名或应用累计，时间长的排前面', (t) => {
+  const tr = makeTracker(t);
+  const t0 = Date.now();
+  let now = t0;
+  const step = (sample, sec) => tr.onSample({ title: '', idleMs: 0, ...sample }, (now += sec * 1000));
+  tr.onSample({ proc: 'Code', title: '', idleMs: 0 }, t0);
+  step({ proc: 'Code' }, 6); // Code 6s
+  tr.setBrowserTab({ browser: 'chrome', domain: 'www.bilibili.com' });
+  step({ proc: 'chrome' }, 4); // Code 再 4s，然后切到 B 站
+  step({ proc: 'chrome' }, 8); // bilibili 8s
+  tr.setBrowserTab({ browser: 'chrome', domain: 'github.com' });
+  step({ proc: 'chrome' }, 2); // bilibili 再 2s，然后切到 GitHub
+  step({ proc: 'explorer' }, 3); // github 3s，然后是不算学习也不算摸鱼的应用
+  step({ proc: 'explorer' }, 5); // 这 5s 不进明细
+  assert.deepEqual(tr.breakdown(), {
+    study: [{ app: 'Code', sec: 10 }, { domain: 'github.com', sec: 3 }],
+    slack: [{ domain: 'bilibili.com', sec: 10 }],
+  });
+  assert.deepEqual(tr.getStatus().breakdown, tr.breakdown()); // 跟着状态发给对方
+  assert.deepEqual(tr.breakdown(1).study, [{ app: 'Code', sec: 10 }]);
+});
+
+test('明细：隐私应用和暂停分享期间的活动不会进明细，暂停时也不发给对方', (t) => {
+  const rules = { ...DEFAULT_RULES, private: { domains: ['bilibili.com'], apps: ['wechat'] } };
+  const tr = makeTracker(t, rules);
+  let now = Date.now();
+  const step = (sample, sec) => tr.onSample({ title: '', idleMs: 0, ...sample }, (now += sec * 1000));
+  tr.onSample({ proc: 'WeChat', title: '', idleMs: 0 }, now);
+  step({ proc: 'WeChat' }, 5);
+  tr.setBrowserTab({ browser: 'chrome', domain: 'www.bilibili.com' });
+  step({ proc: 'chrome' }, 5);
+  step({ proc: 'steam' }, 5);
+  tr.setPaused(true);
+  step({ proc: 'steam' }, 5); // 暂停期间在玩游戏
+  step({ proc: 'steam' }, 5);
+  assert.deepEqual(tr.getStatus(), { paused: true });
+  tr.setPaused(false);
+  assert.deepEqual(tr.breakdown(), { study: [], slack: [] });
+  assert.ok(!JSON.stringify(tr.getStatus()).toLowerCase().includes('wechat'));
+});
+
+test('明细：能读旧版本存的 today.json（没有 by），重启后明细还在', (t) => {
+  const tr = makeTracker(t);
+  fs.writeFileSync(path.join(tr.dataDir, 'today.json'), JSON.stringify({ date: localDate(), sec: { study: 100, slack: 20, neutral: 0 } }));
+  tr.today = tr._loadToday();
+  assert.deepEqual(tr.breakdown(), { study: [], slack: [] });
+  assert.equal(tr.todaySec().study, 100);
+  const t0 = Date.now();
+  tr.onSample({ proc: 'Code', title: '', idleMs: 0 }, t0);
+  tr.onSample({ proc: 'Code', title: '', idleMs: 0 }, t0 + 5000);
+  tr._saveToday();
+  assert.deepEqual(tr._loadToday().by, { study: { 'a:Code': 5 }, slack: {} });
+});
+
+test('明细：项数和名字长度都有上限（要跟着状态发出去，服务器单条消息限 8KB）', (t) => {
+  const tr = makeTracker(t);
+  for (let i = 0; i < 40; i++) tr.today.by.study[`d:${'x'.repeat(200)}${i}.edu`] = 100 + i;
+  const b = tr.breakdown();
+  assert.equal(b.study.length, 8);
+  assert.equal(b.study[0].sec, 139);
+  assert.ok(b.study.every((e) => e.domain.length <= 64));
+  assert.ok(JSON.stringify({ type: 'status', status: tr.getStatus() }).length < 2048);
+});
+
 test('暂停分享时自己仍然看得到今天的累计（todaySec 不依赖分享状态）', (t) => {
   const tr = makeTracker(t);
   const t0 = Date.now();

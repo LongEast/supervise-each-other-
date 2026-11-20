@@ -23,7 +23,8 @@ const STATE_LABEL = {
 
 let state = null;
 let menuOpen = false;
-let hovering = false;
+let hovering = false; // 鼠标在小狗 / 卡片 / 明细上
+let detail = null; // 正在看谁的哪类明细：{ who: 'me' | 'friend', cat: 'study' | 'slack' }
 let bubbleTimer = null;
 let cooldownUntil = 0;
 
@@ -100,31 +101,100 @@ function whatText(v) {
 }
 
 // ---------- 渲染 ----------
+const CAT_LABEL = { study: '学习', slack: '摸鱼' };
+const DETAIL_ROWS = 6; // 明细最多列几项，剩下的并成「其他」
+const num = (x) => (Number.isFinite(x) && x > 0 ? x : 0); // 对方发来的数字不一定靠谱
+const el = (cls, text = '') => {
+  const d = document.createElement('span');
+  d.className = cls;
+  d.textContent = text; // 名字、域名都可能是对方发来的，只当文本
+  return d;
+};
+
 // 今日学习 / 摸鱼：自己那行一直有（没连上、暂停分享时也有）；搭子在线且在分享状态时再加一行。
-// 两行的进度条用同一个刻度，谁长谁短一眼能比出来。
+function statRows(v) {
+  const row = (id, who, t, breakdown) => ({ id, who, t: { study: num(t?.study), slack: num(t?.slack) }, breakdown });
+  const rows = [row('me', '我', state?.me?.todaySec, state?.me?.breakdown)];
+  if (v.name && v.key !== 'offline' && v.status?.todaySec) rows.push(row('friend', v.name, v.status.todaySec, v.status.breakdown));
+  return rows;
+}
+
+// 两行的进度条用同一个刻度，谁长谁短一眼能比出来。时长可以点，点了看明细。
+let statsSig = '';
 function renderStats(v) {
-  const rows = [{ who: '我', t: state?.me?.todaySec || { study: 0, slack: 0 } }];
-  if (v.name && v.key !== 'offline' && v.status?.todaySec) rows.push({ who: v.name, t: v.status.todaySec });
+  const rows = statRows(v);
   const scale = Math.max(1, ...rows.map((r) => r.t.study + r.t.slack));
-  const el = (cls, text = '') => {
-    const d = document.createElement('span');
-    d.className = cls;
-    d.textContent = text; // 名字是对方填的，只当文本
-    return d;
-  };
+  const pct = (sec) => Math.round((sec / scale) * 100);
+  // 显示出来的内容没变就不重建：正在点的时候把元素换掉，这次点击会丢
+  const sig = JSON.stringify(rows.map((r) => [r.who, fmtDur(r.t.study), fmtDur(r.t.slack), pct(r.t.study), pct(r.t.slack)]));
+  if (sig === statsSig) return;
+  statsSig = sig;
   const box = $('cardStats');
-  box.replaceChildren(el('stats-head', '今日'), el(''), el('stats-head num', '学习'), el('stats-head num', '摸鱼'));
+  box.replaceChildren(el('stats-head tip', '今日 · 点时长看明细'), el('stats-head num', '学习'), el('stats-head num', '摸鱼'));
   for (const r of rows) {
     const bar = el('bar');
-    for (const k of ['study', 'slack']) {
-      const seg = el(`seg ${k}`);
-      seg.style.width = `${(r.t[k] / scale) * 100}%`;
-      bar.append(seg);
-    }
     const who = el('stats-who', r.who);
     who.title = r.who;
-    box.append(who, bar, el('stats-num study', fmtDur(r.t.study)), el('stats-num slack', fmtDur(r.t.slack)));
+    box.append(who, bar);
+    for (const cat of ['study', 'slack']) {
+      const seg = el(`seg ${cat}`);
+      seg.style.width = `${pct(r.t[cat])}%`;
+      bar.append(seg);
+      const n = el(`stats-num ${cat}`, fmtDur(r.t[cat]));
+      n.dataset.who = r.id;
+      n.dataset.cat = cat;
+      box.append(n);
+    }
   }
+}
+
+function entryName(e) {
+  if (typeof e?.domain === 'string' && e.domain) return SITE_NAMES[e.domain] || e.domain;
+  if (typeof e?.app === 'string' && e.app) return appName(e.app);
+  return '';
+}
+
+// 明细：这个人今天的学习 / 摸鱼时间花在了哪些网站（域名）和应用上
+function renderDetail(v) {
+  if (!detail) return;
+  const row = statRows(v).find((r) => r.id === detail.who);
+  if (!row) return void (detail = null); // 搭子下线了，那一行已经没有了
+  const { cat } = detail;
+  const total = row.t[cat];
+  $('detailWho').textContent = row.who;
+  $('detailTotal').textContent = ` · 今日${CAT_LABEL[cat]} ${fmtDur(total)}`;
+  $('detailTotal').className = `detail-total ${cat}`;
+
+  const raw = row.breakdown?.[cat];
+  const items = (Array.isArray(raw) ? raw : [])
+    .map((e) => ({ name: entryName(e), tip: e?.domain || e?.app || '', sec: num(e?.sec) }))
+    .filter((e) => e.name && e.sec > 0)
+    .sort((a, b) => b.sec - a.sec)
+    .slice(0, DETAIL_ROWS);
+  const rest = total - items.reduce((s, e) => s + e.sec, 0);
+  if (items.length && rest >= 60) items.push({ name: '其他', tip: '', sec: rest, other: true });
+
+  const max = Math.max(1, ...items.map((e) => e.sec));
+  const list = $('detailList');
+  list.replaceChildren();
+  for (const e of items) {
+    const name = el(`detail-name${e.other ? ' other' : ''}`, e.name);
+    name.title = String(e.tip);
+    const bar = el('bar');
+    const seg = el(`seg ${cat}`);
+    seg.style.width = `${(e.sec / max) * 100}%`;
+    bar.append(seg);
+    list.append(name, bar, el('detail-dur', e.sec < 60 ? '<1m' : fmtDur(e.sec)));
+  }
+
+  let note = '';
+  if (!items.length) {
+    if (total < 1) note = `今天还没有${CAT_LABEL[cat]}记录`;
+    else if (row.id === 'friend' && !row.breakdown) note = 'TA 的 Buddy Pet 还是旧版本，更新之后才能看到明细';
+    else note = '这段时间是更新到新版本之前记的，没有明细';
+  }
+  $('detailNote').textContent = note;
+  $('detailNote').classList.toggle('hidden', !note);
 }
 
 function render() {
@@ -159,6 +229,7 @@ function render() {
     $('cardHint').textContent = v.name && v.key !== 'offline' ? '点我戳 TA 一下' : '';
   }
   renderStats(v);
+  renderDetail(v);
   const streak = v.status?.slackStreakSec || 0;
   const streakEl = $('cardStreak');
   if (v.key === 'slack' && streak >= 300) {
@@ -181,7 +252,9 @@ function render() {
 function updateOverlays() {
   const bubbleShown = !$('bubble').classList.contains('hidden');
   $('menu').classList.toggle('hidden', !menuOpen);
-  $('card').classList.toggle('hidden', !(hovering && !menuOpen && !bubbleShown));
+  const overlay = hovering && !menuOpen && !bubbleShown;
+  $('card').classList.toggle('hidden', !(overlay && !detail));
+  $('detail').classList.toggle('hidden', !(overlay && detail));
 }
 
 function showBubble(html, { self = false, ms = 9000 } = {}) {
@@ -207,16 +280,38 @@ function animate(cls) {
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 // ---------- 交互 ----------
-$('pet').addEventListener('mouseenter', () => {
-  hovering = true;
-  updateOverlays();
+// 鼠标在小狗、卡片、明细之间移动都算「还在看」；全都离开一小会儿才收起来，明细也跟着关掉
+let leaveTimer = null;
+for (const id of ['pet', 'card', 'detail']) {
+  $(id).addEventListener('mouseenter', () => {
+    clearTimeout(leaveTimer);
+    hovering = true;
+    updateOverlays();
+  });
+  $(id).addEventListener('mouseleave', () => {
+    clearTimeout(leaveTimer);
+    leaveTimer = setTimeout(() => {
+      hovering = false;
+      detail = null;
+      updateOverlays();
+    }, 250);
+  });
+}
+// 点卡片上的时长 → 看明细
+$('cardStats').addEventListener('click', (e) => {
+  const n = e.target.closest('.stats-num');
+  if (!n) return;
+  detail = { who: n.dataset.who, cat: n.dataset.cat };
+  render();
 });
-$('pet').addEventListener('mouseleave', () => {
-  hovering = false;
-  setTimeout(updateOverlays, 120);
+$('detailBack').addEventListener('click', (e) => {
+  e.preventDefault();
+  detail = null;
+  updateOverlays();
 });
 $('pet').addEventListener('click', () => {
   hideBubble();
+  detail = null;
   if (state?.connection?.state !== 'online') return buddy.openSettings();
   menuOpen = !menuOpen;
   setMenuMsg('');
@@ -243,10 +338,10 @@ $('pauseLink').addEventListener('click', (e) => {
   buddy.togglePause();
 });
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && menuOpen) {
-    menuOpen = false;
-    updateOverlays();
-  }
+  if (e.key !== 'Escape' || !(menuOpen || detail)) return;
+  menuOpen = false;
+  detail = null;
+  updateOverlays();
 });
 
 function setMenuMsg(text, kind = '') {

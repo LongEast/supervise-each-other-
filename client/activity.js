@@ -10,6 +10,10 @@ const { classify, isBrowser } = require('./classifier');
 const MAX_TICK_SEC = 10; // 睡眠/卡顿时最多算 10 秒，避免一下子加很多
 const EXT_FRESH_MS = 90_000; // 插件每 30 秒心跳一次；超过 90 秒没消息就当作插件不在了
 const ACTIVE_IDLE_MS = 60_000; // 一分钟内动过键鼠就算「正在用电脑」
+const BREAKDOWN_TOP = 8; // 明细里每类最多列几项（会跟着状态发给对方，不能太长）
+const BREAKDOWN_NAME_MAX = 64;
+
+const emptyToday = (date) => ({ date, sec: { study: 0, slack: 0, neutral: 0 }, by: { study: {}, slack: {} } });
 
 // 进程名 → 浏览器插件上报时用的 key
 function browserKey(proc) {
@@ -142,6 +146,11 @@ class ActivityTracker extends EventEmitter {
       if (c === 'study' || c === 'slack' || c === 'neutral') this.today.sec[c] += dt;
       else if (c === 'private') this.today.sec.neutral += dt;
       if (c === 'slack') this.slackStreakSec += dt;
+      // 明细：学习 / 摸鱼的时间分别记到具体的网站（域名）或应用上。隐私应用不在这两类里，不会被记下来
+      if (c === 'study' || c === 'slack') {
+        const key = this.current.domain ? `d:${this.current.domain}` : this.current.app ? `a:${this.current.app}` : null;
+        if (key) this.today.by[c][key] = (this.today.by[c][key] || 0) + dt;
+      }
     }
 
     const proc = String(sample.proc || '');
@@ -181,6 +190,20 @@ class ActivityTracker extends EventEmitter {
     return { study: r(this.today.sec.study), slack: r(this.today.sec.slack), neutral: r(this.today.sec.neutral) };
   }
 
+  /**
+   * 今天的学习 / 摸鱼时间都花在了哪：每类取时间最长的几项，只有应用名和域名（没有网址和窗口标题）。
+   * @returns {{study: {domain?:string, app?:string, sec:number}[], slack: {domain?:string, app?:string, sec:number}[]}}
+   */
+  breakdown(limit = BREAKDOWN_TOP) {
+    const top = (by) =>
+      Object.entries(by)
+        .map(([k, sec]) => ({ [k.startsWith('d:') ? 'domain' : 'app']: k.slice(2, 2 + BREAKDOWN_NAME_MAX), sec: Math.round(sec) }))
+        .filter((e) => e.sec > 0)
+        .sort((a, b) => b.sec - a.sec)
+        .slice(0, limit);
+    return { study: top(this.today.by.study), slack: top(this.today.by.slack) };
+  }
+
   /** 发给对方的状态（不含窗口标题） */
   getStatus() {
     if (this.paused) return { paused: true };
@@ -190,6 +213,7 @@ class ActivityTracker extends EventEmitter {
       app: this.current.app,
       domain: this.current.domain,
       todaySec: this.todaySec(),
+      breakdown: this.breakdown(),
       slackStreakSec: Math.round(this.slackStreakSec),
     };
   }
@@ -202,11 +226,12 @@ class ActivityTracker extends EventEmitter {
   _loadToday() {
     try {
       const t = JSON.parse(fs.readFileSync(this._file(), 'utf8'));
-      if (t.date === localDate()) return t;
+      // 旧版本存的文件里没有 by（明细），补上空的
+      if (t.date === localDate()) return { ...t, by: { study: { ...t.by?.study }, slack: { ...t.by?.slack } } };
     } catch {
       /* 没有就新建 */
     }
-    return { date: localDate(), sec: { study: 0, slack: 0, neutral: 0 } };
+    return emptyToday(localDate());
   }
 
   _saveToday() {
@@ -221,7 +246,7 @@ class ActivityTracker extends EventEmitter {
   _rollDay() {
     const d = localDate();
     if (this.today.date !== d) {
-      this.today = { date: d, sec: { study: 0, slack: 0, neutral: 0 } };
+      this.today = emptyToday(d);
       this.slackStreakSec = 0;
     }
   }
