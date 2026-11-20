@@ -43,3 +43,7 @@ test('打包工具用 electron-builder 26 以上（25 在没有管理员权限�
   const v = JSON.parse(read('package.json')).devDependencies['electron-builder'];
   assert.ok(Number(/(\d+)/.exec(v)[1]) >= 26, v);
 });
+
+test('便携版每次启动解压到各自的临时目录（共用一个目录的话，重复启动会把正在运行的那份文件删掉重写，新开的窗口样式全乱）', () => {
+  assert.equal(JSON.parse(read('package.json')).build.portable.unpackDirName, true);
+});

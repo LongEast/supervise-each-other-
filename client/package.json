@@ -31,6 +31,9 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
     },
+    "portable": {
+      "unpackDirName": true
+    },
     "directories": {
       "output": "dist"
     }
