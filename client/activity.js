@@ -148,7 +148,7 @@ class ActivityTracker extends EventEmitter {
     if (!this.paused && dt > 0) {
       const c = this.current.category;
       if (c === 'study' || c === 'slack' || c === 'neutral') this.today.sec[c] += dt;
-      else if (c === 'private') this.today.sec.neutral += dt;
+      else if (c === 'private') this.today.sec.neutral += dt; // 隐私应用不算学习也不算摸鱼
       if (c === 'slack') this.slackStreakSec += dt;
       // 明细：学习 / 摸鱼的时间分别记到具体的网站（域名）或应用上。隐私应用不在这两类里，不会被记下来
       if (c === 'study' || c === 'slack') {
@@ -175,6 +175,9 @@ class ActivityTracker extends EventEmitter {
     if ((category !== 'slack' && idleMin >= idleLimit) || idleMin >= 20) category = 'away';
 
     if (category === 'study' || category === 'away') this.slackStreakSec = 0;
+    // 两个名单都不在的网站和应用（classify 给的 neutral）也算学习时间，小狗显示「学习中」、明细里记在学习下面。
+    // 但它不清零连续摸鱼：不然刷视频时切出去回个消息，「连续摸鱼」就从头算了
+    if (category === 'neutral') category = 'study';
 
     const next = {
       category,

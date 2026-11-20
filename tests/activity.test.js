@@ -99,14 +99,49 @@ test('明细：学习 / 摸鱼时间按网站域名或应用累计，时间长�
   step({ proc: 'chrome' }, 8); // bilibili 8s
   tr.setBrowserTab({ browser: 'chrome', domain: 'github.com' });
   step({ proc: 'chrome' }, 2); // bilibili 再 2s，然后切到 GitHub
-  step({ proc: 'explorer' }, 3); // github 3s，然后是不算学习也不算摸鱼的应用
-  step({ proc: 'explorer' }, 5); // 这 5s 不进明细
+  step({ proc: 'explorer' }, 3); // github 3s，然后是哪个名单都不在的应用
+  step({ proc: 'explorer' }, 5); // 名单外的也算学习，5s
   assert.deepEqual(tr.breakdown(), {
-    study: [{ app: 'Code', sec: 10 }, { domain: 'github.com', sec: 3 }],
+    study: [{ app: 'Code', sec: 10 }, { app: 'explorer', sec: 5 }, { domain: 'github.com', sec: 3 }],
     slack: [{ domain: 'bilibili.com', sec: 10 }],
   });
   assert.deepEqual(tr.getStatus().breakdown, tr.breakdown()); // 跟着状态发给对方
   assert.deepEqual(tr.breakdown(1).study, [{ app: 'Code', sec: 10 }]);
+});
+
+test('哪个名单都不在的网站和应用算学习时间，但不清零连续摸鱼；隐私应用两边都不算', (t) => {
+  const rules = { ...DEFAULT_RULES, private: { domains: [], apps: ['wechat'] } };
+  const tr = makeTracker(t, rules);
+  let now = Date.now();
+  const step = (sample, sec) => tr.onSample({ title: '', idleMs: 0, ...sample }, (now += sec * 1000));
+  tr.setBrowserTab({ browser: 'chrome', domain: 'some-unlisted-site.com' });
+  tr.onSample({ proc: 'chrome', title: '', idleMs: 0 }, now);
+  assert.equal(tr.getStatus().category, 'study'); // 小狗显示「学习中」
+  step({ proc: 'explorer' }, 6); // 名单外的网站 6s
+  step({ proc: 'steam' }, 4); // 名单外的应用 4s
+  assert.deepEqual(tr.todaySec(), { study: 10, slack: 0, neutral: 0 });
+  assert.deepEqual(tr.breakdown().study, [{ domain: 'some-unlisted-site.com', sec: 6 }, { app: 'explorer', sec: 4 }]);
+
+  step({ proc: 'steam' }, 8); // 摸鱼 8s
+  step({ proc: 'explorer' }, 2); // 摸鱼再 2s，切到名单外的应用
+  assert.equal(tr.getStatus().category, 'study');
+  assert.equal(tr.getStatus().slackStreakSec, 10); // 没被清零
+  step({ proc: 'steam' }, 3);
+  step({ proc: 'steam' }, 5);
+  assert.equal(tr.getStatus().slackStreakSec, 15); // 回来接着算
+  step({ proc: 'Code' }, 1); // 学习名单里的才清零
+  assert.equal(tr.getStatus().slackStreakSec, 0);
+
+  step({ proc: 'WeChat' }, 2);
+  assert.equal(tr.getStatus().category, 'private');
+  const before = tr.todaySec();
+  step({ proc: 'WeChat' }, 7); // 隐私应用 7s：学习、摸鱼都不加
+  assert.deepEqual([tr.todaySec().study, tr.todaySec().slack], [before.study, before.slack]);
+  assert.equal(tr.todaySec().neutral, 7);
+
+  // 名单外的应用键鼠空闲 5 分钟照样算离开，不会挂着就涨学习时间
+  step({ proc: 'explorer', idleMs: 6 * 60_000 }, 2);
+  assert.equal(tr.getStatus().category, 'away');
 });
 
 test('明细：隐私应用和暂停分享期间的活动不会进明细，暂停时也不发给对方', (t) => {

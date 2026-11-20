@@ -1,5 +1,6 @@
 // 把「当前前台应用 + 网址」归类为：study / slack / neutral / private
 // 纯函数，方便测试和以后扩展。
+// neutral = 哪个名单都不在。计时的时候它按学习算（见 activity.js），和 study 的区别只是不会清零连续摸鱼。
 
 const BROWSERS = new Set([
   'chrome', 'msedge', 'firefox', 'brave', 'opera', 'vivaldi', 'arc',
