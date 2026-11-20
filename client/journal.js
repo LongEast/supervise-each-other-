@@ -199,8 +199,11 @@ class JournalSync {
    */
   save(kind, input, now = Date.now()) {
     const today = this.today();
-    // 只允许改今天的；过了零点还可以补交昨天的复盘
-    const date = kind === 'review' && input?.date === addDays(today, -1) ? input.date : today;
+    const tomorrow = addDays(today, 1);
+    // 只允许：改今天的、补交昨天的复盘、提前写明天的计划
+    let date = today;
+    if (kind === 'review' && input?.date === addDays(today, -1)) date = input.date;
+    if (kind === 'plan' && input?.date === tomorrow) date = tomorrow;
     const j = cleanJournal({ ...input, date });
     if (!j || !j.items.length) return { ok: false, error: '至少要有一条要做的事' };
     const day = this.store.load(date);
@@ -214,9 +217,11 @@ class JournalSync {
       j.improve = prev?.improve || '';
     }
     for (const it of j.items) if (it.done) it.reason = '';
+    if (date === tomorrow) for (const it of j.items) it.done = false;
     day.me = j;
     this.store.save(day);
-    this._send(date);
+    // 明天的计划先只存在本机：服务器只缓存每人日期最新的一份，提前发过去会把今天的进度盖掉。到了那天 tick() 会发
+    if (date !== tomorrow) this._send(date);
     return { ok: true, journal: j };
   }
 

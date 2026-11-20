@@ -6,7 +6,7 @@ const path = require('path');
 const { ActivityTracker, localDate } = require('./activity');
 const { RelayClient } = require('./relay');
 const { DEFAULT_RULES } = require('./classifier');
-const { JournalStore, JournalSync, duePrompt, markPrompted, snooze, snoozesLeft, progress, toMinutes, isDate } = require('./journal');
+const { JournalStore, JournalSync, duePrompt, markPrompted, snooze, snoozesLeft, progress, toMinutes, isDate, addDays } = require('./journal');
 
 const APP_ID = 'com.buddypet.app'; // 要和 package.json 里的 build.appId 一致
 const EXT_PORT = 17321;
@@ -86,7 +86,7 @@ const journal = new JournalSync({ store: journalStore, send: (msg) => relay.send
 let friend = null; // { name, online, status }
 let petWin = null;
 let settingsWin = null;
-const journalWins = {}; // { plan, review, view }
+const journalWins = {}; // 'plan:2026-01-02' 这样的 key → 窗口
 let tray = null;
 let selfAlertIdx = 0;
 
@@ -188,7 +188,8 @@ function journalChanged() {
 }
 
 function openJournal(mode, { reminder = false, date = localDate() } = {}) {
-  const old = journalWins[mode];
+  const key = `${mode}:${date}`; // 今日计划和明日计划可以同时开着
+  const old = journalWins[key];
   if (old && !old.isDestroyed()) {
     if (old.isMinimized()) old.restore();
     return old.focus();
@@ -196,16 +197,18 @@ function openJournal(mode, { reminder = false, date = localDate() } = {}) {
   const win = new BrowserWindow({
     width: 460,
     height: 600,
-    title: { plan: '今日计划', review: '今日复盘', view: 'TA 的今日计划' }[mode],
+    title: { plan: date > localDate() ? '明日计划' : '今日计划', review: '今日复盘', view: 'TA 的今日计划' }[mode],
     autoHideMenuBar: true,
     maximizable: false,
     alwaysOnTop: reminder, // 到点弹出来的要盖在别的窗口上面，不然容易被忽略
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
   });
   win.loadFile(path.join(__dirname, 'renderer', 'journal.html'), { query: { mode, date, reminder: reminder ? '1' : '' } });
-  win.on('closed', () => delete journalWins[mode]);
-  journalWins[mode] = win;
+  win.on('closed', () => delete journalWins[key]);
+  journalWins[key] = win;
 }
+
+const openTomorrowPlan = () => openJournal('plan', { date: addDays(localDate(), 1) });
 
 // 定时检查：跨天了没有、该不该弹计划 / 复盘
 function checkJournal() {
@@ -299,6 +302,8 @@ function updateTray() {
   tray.setToolTip(`Buddy Pet · ${label}${tracker.paused ? ' · 已暂停分享' : ''}`);
   const mine = progress(journal.mine());
   const planLabel = mine ? `（${mine.done}/${mine.total}${mine.reviewed ? '，已复盘' : ''}）` : '（还没写）';
+  const next = progress(journal.mine(addDays(localDate(), 1)));
+  const tomorrowLabel = next ? `（已写 ${next.total} 条）` : '';
   tray.setContextMenu(
     Menu.buildFromTemplate([
       { label: `状态：${label}${relay.state === 'error' && relay.lastError ? '（' + relay.lastError + '）' : ''}`, enabled: false },
@@ -321,6 +326,7 @@ function updateTray() {
       },
       { type: 'separator' },
       { label: `今日计划${planLabel}`, click: () => openJournal('plan') },
+      { label: `明日计划${tomorrowLabel}`, click: openTomorrowPlan },
       { label: '今日复盘', click: () => openJournal('review', { date: journal.reviewDate() }) },
       { type: 'separator' },
       { label: '设置…', click: openSettings },
@@ -396,7 +402,7 @@ ipcMain.handle('config:save', (_e, next) => {
 ipcMain.handle('config:resetRules', () => DEFAULT_RULES);
 ipcMain.on('open-settings', openSettings);
 
-ipcMain.on('journal:open', (_e, mode) => openJournal(['plan', 'review', 'view'].includes(mode) ? mode : 'plan'));
+ipcMain.on('journal:open', (_e, mode) => (mode === 'tomorrow' ? openTomorrowPlan() : openJournal(['plan', 'review', 'view'].includes(mode) ? mode : 'plan')));
 ipcMain.handle('journal:get', (_e, date) => {
   const today = localDate();
   const day = journalStore.load(isDate(date) ? date : today);
@@ -418,7 +424,12 @@ ipcMain.handle('journal:snooze', (e) => {
   if (snooze(day)) journalStore.save(day);
   BrowserWindow.fromWebContents(e.sender)?.close();
 });
-ipcMain.handle('journal:history', () => journalStore.recent(7));
+ipcMain.handle('journal:history', () => {
+  const today = localDate();
+  const tomorrow = addDays(today, 1);
+  // 明天的排在最前面，方便提前写；对方明天的计划要到那天才会收到
+  return { today, days: [{ date: tomorrow, me: journalStore.load(tomorrow).me, friend: null }, ...journalStore.recent(7, today)] };
+});
 ipcMain.on('toggle-pause', () => {
   tracker.setPaused(!tracker.paused);
   updateTray();

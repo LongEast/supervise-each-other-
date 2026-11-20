@@ -26,9 +26,10 @@ const shortDate = (d) => `${Number(d.slice(5, 7))} 月 ${Number(d.slice(8, 10))}
 
 // ---------- 今日计划 ----------
 function renderPlan() {
-  const planned = !!data.me?.planAt;
-  document.title = '今日计划';
-  $('title').textContent = '📝 今日计划';
+  const future = data.date > data.today; // 提前写明天的：只能编辑条目，不能勾选
+  const planned = !!data.me?.planAt && !future;
+  document.title = future ? '明日计划' : '今日计划';
+  $('title').textContent = future ? '📝 明日计划' : '📝 今日计划';
   if (data.me?.reviewAt) {
     $('sub').textContent = `${shortDate(data.date)} · 今天已经复盘过了，计划不再修改。`;
     $('list').replaceChildren(journalView(data.me));
@@ -38,11 +39,13 @@ function renderPlan() {
   const filled = items.filter((it) => it.text.trim());
   $('sub').textContent = planned
     ? `${shortDate(data.date)} · 已完成 ${filled.filter((it) => it.done).length}/${filled.length}，勾选和修改会自动保存，进度会同步给搭子。`
-    : `${shortDate(data.date)} · 写下今天要做的 1–8 件事。`;
+    : future
+      ? `${shortDate(data.date)} · 提前写下明天要做的 1–8 件事。到了明天它就是今日计划，早上不会再弹窗提醒。`
+      : `${shortDate(data.date)} · 写下今天要做的 1–8 件事。`;
   $('list').replaceChildren(...items.map((it, i) => planRow(it, i, planned)));
   show('addBtn', items.length < MAX_ITEMS);
   show('saveBtn', !planned);
-  $('saveBtn').textContent = '保存计划';
+  $('saveBtn').textContent = future ? '保存明日计划' : '保存计划';
   show('snoozeBtn', !planned && reminder && data.snoozesLeft > 0);
   $('snoozeBtn').textContent = `15 分钟后再提醒（还能推迟 ${data.snoozesLeft} 次）`;
 }
@@ -86,9 +89,10 @@ function addItem() {
 
 async function savePlan() {
   const first = !data.me?.planAt;
-  const r = await buddy.saveJournal('plan', { items });
+  const r = await buddy.saveJournal('plan', { date: data.date, items });
   if (!r.ok) return setMsg(r.error, true);
   data.me = r.journal;
+  if (data.date > data.today) return setMsg('明日计划已保存 ✓ 明天搭子才会看到');
   setMsg(first ? '计划已保存 ✓ 搭子能看到你的进度了' : '已保存 ✓');
   if (first) {
     items = items.filter((it) => it.text.trim());
@@ -184,7 +188,7 @@ const render = () => ({ plan: renderPlan, review: renderReview, view: renderView
 async function load() {
   data = await buddy.getJournal(query.get('date') || undefined);
   items = (data.me?.items || []).map((it) => ({ ...it }));
-  if (mode === 'plan' && !data.me?.planAt) while (items.length < 3) items.push({ text: '', done: false });
+  if (mode === 'plan' && (!data.me?.planAt || data.date > data.today)) while (items.length < 3) items.push({ text: '', done: false });
   render();
 }
 

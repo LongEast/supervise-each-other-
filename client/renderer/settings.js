@@ -90,22 +90,37 @@ function ratePill(who, j) {
   return el('span', 'pill' + (p ? (p.pct === 100 ? ' ok' : '') : ''), p ? `${who} ${p.text}（${p.pct}%）` : `${who} 没写`);
 }
 async function loadHistory() {
-  const days = await buddy.journalHistory();
+  const { today, days } = await buddy.journalHistory();
   const opened = new Set([...document.querySelectorAll('details.day[open]')].map((d) => d.dataset.date));
   $('history').replaceChildren(
-    ...days.map((day, i) => {
+    ...days.map((day) => {
       const [y, m, d] = day.date.split('-').map(Number);
+      const future = day.date > today;
       const friendName = day.friend?.name || '搭子';
       const summary = el('summary', '');
       const rate = el('span', 'rate');
-      rate.append(ratePill('我', day.me), ratePill(friendName, day.friend?.journal));
-      summary.append(el('span', 'date', `${m} 月 ${d} 日 ${i === 0 ? '今天' : WEEKDAYS[new Date(y, m - 1, d).getDay()]}`), rate);
       const cols = el('div', 'cols');
-      for (const [who, j] of [['我', day.me], [friendName, day.friend?.journal]]) {
+      if (future) {
+        // 明天：还谈不上完成率，只显示写没写；对方的要到明天才看得到
+        const n = journalProgress(day.me)?.total;
+        rate.append(el('span', 'pill' + (n ? ' ok' : ''), n ? `我 已写 ${n} 条` : '我 还没写'));
         const col = el('div', '');
-        col.append(el('div', 'who', who), journalView(j));
+        const btn = el('button', 'ghost', n ? '修改明天的计划' : '提前写明天的计划');
+        btn.type = 'button';
+        btn.addEventListener('click', () => buddy.openJournal('tomorrow'));
+        if (n) col.append(journalView(day.me));
+        col.append(btn);
         cols.append(col);
+      } else {
+        rate.append(ratePill('我', day.me), ratePill(friendName, day.friend?.journal));
+        for (const [who, j] of [['我', day.me], [friendName, day.friend?.journal]]) {
+          const col = el('div', '');
+          col.append(el('div', 'who', who), journalView(j));
+          cols.append(col);
+        }
       }
+      const label = future ? '明天' : day.date === today ? '今天' : WEEKDAYS[new Date(y, m - 1, d).getDay()];
+      summary.append(el('span', 'date', `${m} 月 ${d} 日 ${label}`), rate);
       const details = el('details', 'day');
       details.dataset.date = day.date;
       details.open = opened.has(day.date);

@@ -182,6 +182,33 @@ test('忘了复盘：第二天写新计划之前，「今日复盘」补的是�
   assert.equal(sync.reviewDate(), '2026-03-12'); // 今天已经写了新计划，就不再翻旧账
 });
 
+test('提前写明天的计划：只存本机不发给对方；到了明天自动变成今日计划并同步，早上不再弹窗', (t) => {
+  const { sync, store, sent, env } = makeSync(t);
+  sync.save('plan', plan('今天的事'), 1000);
+  assert.equal(sent.length, 1);
+  const r = sync.save('plan', { date: '2026-03-11', items: [{ text: '明天的事', done: true }, { text: '明天的另一件事' }] }, 2000);
+  assert.equal(r.ok, true);
+  assert.equal(r.journal.date, '2026-03-11');
+  assert.deepEqual(r.journal.items.map((it) => it.done), [false, false]); // 还没到的日子不能先勾
+  assert.equal(store.load('2026-03-11').me.items.length, 2);
+  assert.equal(sent.length, 1, '明天的计划不能提前发出去，否则会盖掉对方看到的今天的进度');
+  sync.flush(); // 重连也只发今天的
+  assert.deepEqual(sent.map((m) => m.journal.date), ['2026-03-10', '2026-03-10']);
+  assert.equal(sync.mine().items[0].text, '今天的事');
+  // 可以反复改
+  assert.equal(sync.save('plan', { date: '2026-03-11', ...plan('改过的明天') }, 3000).journal.planAt, 2000);
+  // 到了明天
+  env.today = '2026-03-11';
+  assert.equal(sync.tick(), true);
+  assert.equal(sent.at(-1).journal.items[0].text, '改过的明天');
+  assert.equal(J.duePrompt(new Date(2026, 2, 11, 9, 0), CFG, store.load('2026-03-11'), true), null);
+  assert.deepEqual(J.progress(sync.mine()), { total: 1, done: 0, reviewed: false });
+  // 后天的、更远的都不行，当成今天
+  assert.equal(sync.save('plan', { date: '2026-03-13', ...plan('x') }).journal.date, '2026-03-11');
+  // 明天的复盘不存在
+  assert.equal(sync.save('review', { date: '2026-03-12', items: [{ text: 'x', done: true }] }).journal.date, '2026-03-11');
+});
+
 // ---------- 同步：暂停分享、重连、跨天 ----------
 test('暂停分享期间不发任何 journal；恢复后补发最新的一份', (t) => {
   const { sync, sent, env } = makeSync(t);
