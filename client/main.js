@@ -7,7 +7,7 @@ const { ActivityTracker, localDate } = require('./activity');
 const { RelayClient } = require('./relay');
 const { DEFAULT_RULES } = require('./classifier');
 const { clampScale, petSize, rescaleBounds, SCALE_STEP } = require('./pet-geometry');
-const { clampRemindMinutes, remindLevel, REMIND_DEFAULT } = require('./reminder');
+const { SlackReminder, clampRemindMinutes, remindOptions, REMIND_DEFAULT, REMIND_OPTIONS } = require('./reminder');
 const { JournalStore, JournalSync, duePrompt, markPrompted, snooze, snoozesLeft, progress, toMinutes, isDate, addDays } = require('./journal');
 
 const APP_ID = 'com.buddypet.app'; // 要和 package.json 里的 build.appId 一致
@@ -56,6 +56,7 @@ const DEFAULT_CONFIG = {
   slackIdleMinutes: 20, // 摸鱼时（常常是在看视频）空闲多久才算离开
   slackRemind: true, // 连续摸鱼太久时弹窗提醒自己
   slackRemindMinutes: REMIND_DEFAULT, // 每连续摸鱼这么多分钟提醒一次
+  slackRemindOptions: REMIND_OPTIONS, // 提醒窗口的下拉框里可以选的间隔（分钟）
   openAtLogin: false,
   planTime: '09:00', // 计划提醒时间
   reviewTime: '22:00', // 复盘提醒时间
@@ -73,6 +74,8 @@ function loadConfig() {
       ...c,
       petScale: clampScale(c.petScale),
       petView: c.petView === 'me' ? 'me' : 'friend',
+      slackRemindMinutes: clampRemindMinutes(c.slackRemindMinutes),
+      slackRemindOptions: remindOptions(c.slackRemindOptions, clampRemindMinutes(c.slackRemindMinutes)),
       rules: { ...DEFAULT_RULES, ...(c.rules || {}) },
     };
   } catch {
@@ -111,7 +114,7 @@ const journalWins = {}; // 'plan:2026-01-02' 这样的 key → 窗口
 let statsWin = null; // 「今日时长明细」窗口
 let remindWin = null; // 「该学习啦」提醒窗口
 let tray = null;
-let remindSeen = 0; // 这一轮连续摸鱼已经提醒到第几次了
+const reminder = new SlackReminder(); // 这一轮连续摸鱼提醒到哪了
 
 function viewState() {
   return {
@@ -147,11 +150,12 @@ tracker.on('change', () => {
   pushState();
 });
 tracker.on('tick', (s) => {
-  // 自己连续摸鱼每满 N 分钟提醒一次；回去学习、离开或暂停分享后计时清零，提醒窗口也跟着关掉
-  const level = s.paused ? 0 : remindLevel(s.slackStreakSec, config.slackRemindMinutes);
-  if (level > remindSeen && config.slackRemind) showSlackReminder(Math.floor(s.slackStreakSec / 60));
-  else if (level === 0) closeSlackReminder();
-  remindSeen = level;
+  // 自己连续摸鱼每满 N 分钟提醒一次；回去学习、离开或暂停分享后计时清零，提醒窗口也跟着关掉。
+  // 开关关着也照样往下数，这样中途打开不会马上弹一个
+  const streak = s.paused ? 0 : s.slackStreakSec || 0;
+  const r = reminder.tick(streak, config.slackRemindMinutes);
+  if (r === 'due' && config.slackRemind) showSlackReminder(Math.floor(streak / 60));
+  else if (r === 'reset') closeSlackReminder();
 });
 
 // ---------------- 服务器消息 ----------------
@@ -259,7 +263,8 @@ function showSlackReminder(minutes) {
   petWin?.webContents.send('self-alert', { minutes, friend: friend?.name || '' });
   const info = {
     minutes,
-    every: clampRemindMinutes(config.slackRemindMinutes),
+    every: clampRemindMinutes(config.slackRemindMinutes), // 下拉框默认选这个
+    options: remindOptions(config.slackRemindOptions, config.slackRemindMinutes),
     friend: relay.state === 'online' && friend?.online ? friend.name : '', // 搭子这会儿真的看得到才提
   };
   if (remindWin && !remindWin.isDestroyed()) {
@@ -284,7 +289,7 @@ function showSlackReminder(minutes) {
   });
   remindWin.setAlwaysOnTop(true, 'screen-saver');
   remindWin.loadFile(path.join(__dirname, 'renderer', 'remind.html'), {
-    query: { minutes: String(info.minutes), every: String(info.every), friend: info.friend },
+    query: { minutes: String(info.minutes), every: String(info.every), options: info.options.join(','), friend: info.friend },
   });
   // 不抢焦点：正在打字的话，按键不会落到这个窗口上
   remindWin.once('ready-to-show', () => remindWin?.showInactive());
@@ -595,6 +600,8 @@ ipcMain.on('pet:drag', (_e, phase) => {
 // 在小狗身上滚滚轮：dir > 0 放大一格，< 0 缩小一格
 ipcMain.on('pet:scale', (_e, dir) => setPetScale(config.petScale + (dir > 0 ? SCALE_STEP : -SCALE_STEP)));
 ipcMain.on('pet:menu', showPetMenu);
+// 提醒窗口里改了「再过 X 分钟提醒我」：只管下一次，从现在的连续摸鱼时长往后数
+ipcMain.on('remind:next', (_e, minutes) => reminder.snooze(minutes, tracker.paused ? 0 : tracker.slackStreakSec));
 ipcMain.handle('poke', (_e, text) => {
   const ok = relay.send({ type: 'poke', text: String(text || '').slice(0, 140) });
   return { sent: ok, reason: ok ? '' : '还没连上服务器' };
@@ -614,6 +621,8 @@ ipcMain.handle('config:save', (_e, next) => {
     openAtLogin: !!next.openAtLogin,
     rules: next.rules || config.rules,
   };
+  // 可以选的间隔里一定有选中的那个
+  config.slackRemindOptions = remindOptions(next.slackRemindOptions ?? config.slackRemindOptions, config.slackRemindMinutes);
   // 摸鱼时的空闲时间不能比平时的短
   config.slackIdleMinutes = Math.max(config.idleMinutes, Math.min(SLACK_IDLE_MAX, Number(next.slackIdleMinutes) || config.slackIdleMinutes || 20));
   // 复盘时间要晚于计划时间，否则保持原来的

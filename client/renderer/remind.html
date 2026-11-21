@@ -17,9 +17,11 @@
     .friend { color: #8b847c; margin: 6px 0 0; min-height: 18px; }
     button { font: inherit; font-size: 14px; margin-top: 14px; border-radius: 9px; padding: 9px 26px; cursor: pointer; border: 1px solid #2e2a26; background: #2e2a26; color: #fff; }
     button:hover { background: #000; }
-    .foot { margin: 12px 0 0; color: #8b847c; font-size: 11.5px; }
+    .foot { margin: 12px 0 0; color: #8b847c; font-size: 12px; }
     .foot a { color: inherit; }
     .foot a:hover { color: #2e2a26; }
+    select { font: inherit; color: #2e2a26; border: 1px solid #e0d8ce; border-radius: 7px; padding: 2px 4px; background: #fff; outline: none; cursor: pointer; }
+    select:focus { border-color: #e5a96a; }
   </style>
 </head>
 <body>
@@ -29,7 +31,7 @@
     <p class="what">你已经连续摸鱼 <b id="minutes">—</b> 了</p>
     <p id="friend" class="friend"></p>
     <button id="ok" type="button">这就去学习 💪</button>
-    <p class="foot"><span id="every"></span><a href="#" id="settings">调整提醒</a></p>
+    <p class="foot"><label for="next">还在摸鱼的话，再过</label> <select id="next"></select> 提醒我 · <a href="#" id="settings">设置</a></p>
   </main>
   <script src="remind.js"></script>
 </body>

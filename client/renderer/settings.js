@@ -1,4 +1,4 @@
-/* global buddy, journalView, journalProgress */
+/* global buddy, journalView, journalProgress, remindOptions, clampRemindMinutes */
 const $ = (id) => document.getElementById(id);
 const toText = (arr) => (arr || []).join('\n');
 const toList = (text) =>
@@ -18,6 +18,17 @@ function fillRules(rules) {
   $('privateApps').value = toText(rules.private?.apps);
 }
 
+// 摸鱼提醒：右边的输入框是可以选的间隔，左边的下拉框从里面选一个。规则和主进程用的是同一份（reminder.js）
+function fillRemind(options, every) {
+  const list = remindOptions(options, every);
+  $('slackRemindOptions').value = list.join(', ');
+  fillRemindSelect(list, clampRemindMinutes(every));
+}
+function fillRemindSelect(list, picked) {
+  if (!list.includes(picked)) picked = list[0];
+  $('slackRemindMinutes').replaceChildren(...list.map((n) => new Option(`${n} 分钟`, String(n), n === picked, n === picked)));
+}
+
 async function load() {
   current = await buddy.getConfig();
   $('serverUrl').value = current.serverUrl || '';
@@ -27,12 +38,17 @@ async function load() {
   $('idleMinutes').value = current.idleMinutes || 5;
   $('slackIdleMinutes').value = current.slackIdleMinutes || 20;
   $('slackRemind').checked = current.slackRemind !== false;
-  $('slackRemindMinutes').value = current.slackRemindMinutes || 20;
+  fillRemind(current.slackRemindOptions, current.slackRemindMinutes);
   $('openAtLogin').checked = !!current.openAtLogin;
   $('planTime').value = current.planTime || '09:00';
   $('reviewTime').value = current.reviewTime || '22:00';
   fillRules(current.rules || {});
 }
+
+// 改右边的时间点，左边的下拉框跟着变；原来选的还在就保留
+$('slackRemindOptions').addEventListener('input', () => {
+  fillRemindSelect(remindOptions($('slackRemindOptions').value), Number($('slackRemindMinutes').value));
+});
 
 $('resetRules').addEventListener('click', async () => {
   fillRules(await buddy.defaultRules());
@@ -60,6 +76,7 @@ $('form').addEventListener('submit', async (e) => {
     slackIdleMinutes: $('slackIdleMinutes').value,
     slackRemind: $('slackRemind').checked,
     slackRemindMinutes: $('slackRemindMinutes').value,
+    slackRemindOptions: $('slackRemindOptions').value,
     openAtLogin: $('openAtLogin').checked,
     planTime: $('planTime').value,
     reviewTime: $('reviewTime').value,
@@ -68,7 +85,7 @@ $('form').addEventListener('submit', async (e) => {
   current = await buddy.getConfig();
   // 主进程会把不合法的数字改掉（比如摸鱼时的空闲时间填得比平时短），把实际存下的显示出来
   $('slackIdleMinutes').value = current.slackIdleMinutes;
-  $('slackRemindMinutes').value = current.slackRemindMinutes;
+  fillRemind(current.slackRemindOptions, current.slackRemindMinutes);
   $('saved').textContent = '已保存 ✓';
   setTimeout(() => ($('saved').textContent = ''), 2500);
 });

@@ -78,18 +78,24 @@ test('右键小狗能换成显示自己的状态：小狗和名牌都接了右�
 test('连续摸鱼提醒：开关和时间在设置里，到点弹置顶窗口，不抢焦点', () => {
   const main = read('main.js');
   assert.match(main, /slackRemind: true,/); // 默认开，和以前一直开着的气泡提醒接上
-  assert.match(main, /if \(level > remindSeen && config\.slackRemind\) showSlackReminder\(/);
-  assert.match(main, /else if \(level === 0\) closeSlackReminder\(\);/); // 回去学习了窗口自己关
+  assert.match(main, /if \(r === 'due' && config\.slackRemind\) showSlackReminder\(/);
+  assert.match(main, /else if \(r === 'reset'\) closeSlackReminder\(\);/); // 回去学习了窗口自己关
+  assert.match(main, /ipcMain\.on\('remind:next', \(_e, minutes\) => reminder\.snooze\(/); // 窗口里选的「再过多久」
   assert.match(main, /remindWin\.setAlwaysOnTop\(true, 'screen-saver'\)/);
   assert.match(main, /remindWin\?\.showInactive\(\)/); // 用 show() 的话，正在打的字会落到提醒窗口上
   assert.doesNotMatch(main, /SELF_ALERT_MINUTES/); // 旧的固定 20/40/60 档已经并进来了
   const html = read('renderer/settings.html');
-  for (const id of ['slackRemind', 'slackRemindMinutes', 'slackIdleMinutes']) {
+  for (const id of ['slackRemind', 'slackRemindMinutes', 'slackRemindOptions', 'slackIdleMinutes']) {
     assert.match(html, new RegExp(`id="${id}"`));
     assert.match(read('renderer/settings.js'), new RegExp(`${id}: \\$\\('${id}'\\)`), `${id} 要随设置一起保存`);
   }
   assert.match(read('renderer/remind.html'), /<script src="remind\.js">/);
   assert.match(read('renderer/remind.js'), /buddy\.onRemind\(show\)/);
+  assert.match(read('renderer/remind.js'), /buddy\.remindNext\(Number\(\$\('next'\)\.value\)\)/);
+  // 设置页和主进程用同一份规则整理「可以选的时间」，reminder.js 要在 settings.js 前面加载
+  const reminderAt = html.indexOf('<script src="../reminder.js">');
+  assert.ok(reminderAt > 0 && reminderAt < html.indexOf('<script src="settings.js">'));
+  assert.match(read('reminder.js'), /if \(typeof module !== 'undefined'\) module\.exports/); // 页面里没有 module
   assert.match(read('preload.js'), /onRemind: on\('remind'\)/);
 });
 

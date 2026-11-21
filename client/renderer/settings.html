@@ -18,10 +18,10 @@
     fieldset { border: 1px solid #e6dfd6; border-radius: 12px; padding: 12px 14px 14px; margin: 0 0 16px; background: #fff; }
     legend { font-weight: 700; padding: 0 6px; }
     label { display: block; margin: 8px 0 4px; color: #5c554e; }
-    input[type=text], input[type=password], input[type=number], input[type=time], textarea {
+    input[type=text], input[type=password], input[type=number], input[type=time], textarea, select {
       width: 100%; font: inherit; border: 1px solid #e0d8ce; border-radius: 8px; padding: 7px 9px; background: #fff; outline: none;
     }
-    input:focus, textarea:focus { border-color: #e5a96a; }
+    input:focus, textarea:focus, select:focus { border-color: #e5a96a; }
     textarea { min-height: 54px; resize: vertical; font-size: 12px; line-height: 1.5; }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .hint { color: #8b847c; font-size: 11.5px; margin-top: 4px; }
@@ -89,10 +89,10 @@
         <legend>摸鱼提醒</legend>
         <div class="check"><input type="checkbox" id="slackRemind" /><label for="slackRemind">连续摸鱼太久时，弹窗提醒我该学习了</label></div>
         <div class="row">
-          <div><label for="slackRemindMinutes">连续摸鱼多少分钟提醒</label><input type="number" id="slackRemindMinutes" min="1" max="240" /></div>
-          <div></div>
+          <div><label for="slackRemindMinutes">每连续摸鱼多久提醒一次</label><select id="slackRemindMinutes"></select></div>
+          <div><label for="slackRemindOptions">可以选的时间（分钟，用逗号分隔）</label><input type="text" id="slackRemindOptions" placeholder="5, 10, 20, 40" /></div>
         </div>
-        <div class="hint">到时间会弹出一个置顶的小窗口，要自己点掉，小狗也会冒气泡。还在摸鱼的话每隔同样的时间再提醒一次（填 20 就是 20、40、60 分钟…）。回到学习名单里的应用或离开电脑，计时清零。只提醒你自己，不会通知搭子。</div>
+        <div class="hint">到时间会弹出一个置顶的小窗口，要自己点掉，小狗也会冒气泡。窗口里可以临时改下一次隔多久（从右边这几个时间里选），不改就按左边的。回到学习名单里的应用或离开电脑，计时清零。只提醒你自己，不会通知搭子。</div>
       </fieldset>
 
       <fieldset>
@@ -121,6 +121,7 @@
     </form>
   </main>
   <script src="journal-view.js"></script>
+  <script src="../reminder.js"></script>
   <script src="settings.js"></script>
 </body>
 </html>
