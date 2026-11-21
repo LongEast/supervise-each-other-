@@ -6,12 +6,12 @@ const path = require('path');
 const { ActivityTracker, localDate, parseSampleLine } = require('../client/activity');
 const { DEFAULT_RULES } = require('../client/classifier');
 
-function makeTracker(t, rules = DEFAULT_RULES) {
+function makeTracker(t, rules = DEFAULT_RULES, settings = { idleMinutes: 5 }) {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'buddy-test-'));
   const tracker = new ActivityTracker({
     dataDir,
     getRules: () => rules,
-    getSettings: () => ({ idleMinutes: 5 }),
+    getSettings: () => settings,
     selfProcNames: ['electron', 'Buddy Pet'],
   });
   t.after(() => {
@@ -67,6 +67,30 @@ test('空闲判定：普通应用 5 分钟，摸鱼网站放宽到 20 分钟', (
   assert.equal(tr.getStatus().category, 'slack');
   tr.onSample({ proc: 'steam', title: '', idleMs: 20 * 60_000 });
   assert.equal(tr.getStatus().category, 'away');
+});
+
+test('空闲判定：摸鱼时的空闲时间可以在设置里改，而且不会比平时的短', (t) => {
+  const tr = makeTracker(t, DEFAULT_RULES, { idleMinutes: 5, slackIdleMinutes: 10 });
+  tr.onSample({ proc: 'steam', title: '', idleMs: 9 * 60_000 });
+  assert.equal(tr.getStatus().category, 'slack');
+  tr.onSample({ proc: 'steam', title: '', idleMs: 10 * 60_000 });
+  assert.equal(tr.getStatus().category, 'away');
+  tr.onSample({ proc: 'Code', title: '', idleMs: 4 * 60_000 }); // 平时的不受影响
+  assert.equal(tr.getStatus().category, 'study');
+
+  // 填得比平时的还短：按平时的算，摸鱼不会比学习更早被判成离开
+  const low = makeTracker(t, DEFAULT_RULES, { idleMinutes: 8, slackIdleMinutes: 2 });
+  low.onSample({ proc: 'steam', title: '', idleMs: 7 * 60_000 });
+  assert.equal(low.getStatus().category, 'slack');
+  low.onSample({ proc: 'steam', title: '', idleMs: 8 * 60_000 });
+  assert.equal(low.getStatus().category, 'away');
+
+  // 平时的空闲时间设得很长时，不会再被 20 分钟截断
+  const long = makeTracker(t, DEFAULT_RULES, { idleMinutes: 30 });
+  long.onSample({ proc: 'Code', title: '', idleMs: 25 * 60_000 });
+  assert.equal(long.getStatus().category, 'study');
+  long.onSample({ proc: 'Code', title: '', idleMs: 30 * 60_000 });
+  assert.equal(long.getStatus().category, 'away');
 });
 
 test('前台是小狗自己时沿用上一个状态', (t) => {

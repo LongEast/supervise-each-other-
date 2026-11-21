@@ -1,5 +1,5 @@
 // Buddy Pet — Electron 主进程
-const { app, BrowserWindow, Tray, Menu, ipcMain, Notification, screen, nativeImage, shell } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, Notification, screen, nativeImage, shell, dialog } = require('electron');
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
@@ -7,12 +7,15 @@ const { ActivityTracker, localDate } = require('./activity');
 const { RelayClient } = require('./relay');
 const { DEFAULT_RULES } = require('./classifier');
 const { clampScale, petSize, rescaleBounds, SCALE_STEP } = require('./pet-geometry');
+const { clampRemindMinutes, remindLevel, REMIND_DEFAULT } = require('./reminder');
 const { JournalStore, JournalSync, duePrompt, markPrompted, snooze, snoozesLeft, progress, toMinutes, isDate, addDays } = require('./journal');
 
 const APP_ID = 'com.buddypet.app'; // 要和 package.json 里的 build.appId 一致
 const EXT_PORT = 17321;
 const STATUS_HEARTBEAT_MS = 30_000;
-const SELF_ALERT_MINUTES = [20, 40, 60, 90, 120];
+const SLACK_IDLE_MAX = 120;
+const UPDATE_CHECK_MS = 6 * 3600_000; // 小狗常常一开好几天，隔几个小时查一次更新
+const RELEASES_URL = 'https://github.com/LongEast/supervise-each-other-/releases/latest'; // 要和 package.json 里的 build.publish 一致
 const JOURNAL_CHECK_MS = 20_000;
 
 if (!app.requestSingleInstanceLock()) {
@@ -50,6 +53,9 @@ const DEFAULT_CONFIG = {
   secret: '',
   name: '',
   idleMinutes: 5,
+  slackIdleMinutes: 20, // 摸鱼时（常常是在看视频）空闲多久才算离开
+  slackRemind: true, // 连续摸鱼太久时弹窗提醒自己
+  slackRemindMinutes: REMIND_DEFAULT, // 每连续摸鱼这么多分钟提醒一次
   openAtLogin: false,
   planTime: '09:00', // 计划提醒时间
   reviewTime: '22:00', // 复盘提醒时间
@@ -90,7 +96,7 @@ const relay = new RelayClient();
 const tracker = new ActivityTracker({
   dataDir,
   getRules: () => config.rules,
-  getSettings: () => ({ idleMinutes: config.idleMinutes }),
+  getSettings: () => ({ idleMinutes: config.idleMinutes, slackIdleMinutes: config.slackIdleMinutes }),
   selfProcNames: [path.basename(process.execPath, '.exe'), 'electron', 'Buddy Pet'],
 });
 
@@ -103,8 +109,9 @@ let petWin = null;
 let settingsWin = null;
 const journalWins = {}; // 'plan:2026-01-02' 这样的 key → 窗口
 let statsWin = null; // 「今日时长明细」窗口
+let remindWin = null; // 「该学习啦」提醒窗口
 let tray = null;
-let selfAlertIdx = 0;
+let remindSeen = 0; // 这一轮连续摸鱼已经提醒到第几次了
 
 function viewState() {
   return {
@@ -140,14 +147,11 @@ tracker.on('change', () => {
   pushState();
 });
 tracker.on('tick', (s) => {
-  // 自己摸鱼太久，小狗先提醒一下
-  if (s.paused) return;
-  const min = (s.slackStreakSec || 0) / 60;
-  if (min < SELF_ALERT_MINUTES[0]) selfAlertIdx = 0;
-  else if (selfAlertIdx < SELF_ALERT_MINUTES.length && min >= SELF_ALERT_MINUTES[selfAlertIdx]) {
-    petWin?.webContents.send('self-alert', { minutes: SELF_ALERT_MINUTES[selfAlertIdx], friend: friend?.name || '' });
-    selfAlertIdx++;
-  }
+  // 自己连续摸鱼每满 N 分钟提醒一次；回去学习、离开或暂停分享后计时清零，提醒窗口也跟着关掉
+  const level = s.paused ? 0 : remindLevel(s.slackStreakSec, config.slackRemindMinutes);
+  if (level > remindSeen && config.slackRemind) showSlackReminder(Math.floor(s.slackStreakSec / 60));
+  else if (level === 0) closeSlackReminder();
+  remindSeen = level;
 });
 
 // ---------------- 服务器消息 ----------------
@@ -247,6 +251,47 @@ function openStats({ who, cat } = {}) {
   });
   statsWin.loadFile(path.join(__dirname, 'renderer', 'stats.html'), { query });
   statsWin.on('closed', () => (statsWin = null));
+}
+
+// ---------------- 「该学习啦」提醒 ----------------
+// 置顶的小窗口，要自己点掉；小狗同时抖一下、冒个气泡。只提醒自己，不发给搭子。
+function showSlackReminder(minutes) {
+  petWin?.webContents.send('self-alert', { minutes, friend: friend?.name || '' });
+  const info = {
+    minutes,
+    every: clampRemindMinutes(config.slackRemindMinutes),
+    friend: relay.state === 'online' && friend?.online ? friend.name : '', // 搭子这会儿真的看得到才提
+  };
+  if (remindWin && !remindWin.isDestroyed()) {
+    // 上一次的还没点掉：更新上面的时长就行，不叠第二个窗口
+    remindWin.webContents.send('remind', info);
+    return remindWin.showInactive();
+  }
+  const size = { width: 380, height: 300 };
+  const wa = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea; // 弹在正在用的那块屏幕上
+  remindWin = new BrowserWindow({
+    ...size,
+    x: Math.round(wa.x + (wa.width - size.width) / 2),
+    y: Math.round(wa.y + (wa.height - size.height) / 3),
+    title: '该学习啦',
+    show: false,
+    autoHideMenuBar: true,
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    alwaysOnTop: true,
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
+  });
+  remindWin.setAlwaysOnTop(true, 'screen-saver');
+  remindWin.loadFile(path.join(__dirname, 'renderer', 'remind.html'), {
+    query: { minutes: String(info.minutes), every: String(info.every), friend: info.friend },
+  });
+  // 不抢焦点：正在打字的话，按键不会落到这个窗口上
+  remindWin.once('ready-to-show', () => remindWin?.showInactive());
+  remindWin.on('closed', () => (remindWin = null));
+}
+function closeSlackReminder() {
+  if (remindWin && !remindWin.isDestroyed()) remindWin.close();
 }
 
 const openTomorrowPlan = () => openJournal('plan', { date: addDays(localDate(), 1) });
@@ -429,6 +474,9 @@ function updateTray() {
       { label: '今日时长明细', click: () => openStats() },
       { type: 'separator' },
       { label: '设置…', click: openSettings },
+      updateReady
+        ? { label: `重启并更新到 ${updateReady}`, click: () => promptInstall(updateReady) }
+        : { label: `检查更新（当前 ${app.getVersion()}）`, click: () => checkForUpdates(true) },
       { type: 'separator' },
       { label: '退出', click: () => app.quit() },
     ])
@@ -443,6 +491,81 @@ function createTray() {
     updateTray();
   });
   updateTray();
+}
+
+// ---------------- 自动更新 ----------------
+// 安装版：发现 GitHub Release 上有新版本就在后台下载，下好了弹窗，点一下重启就装上。
+// 便携版每次是解压到临时目录运行的，没法替换自己，只提示去下载页。
+const isPortable = !!process.env.PORTABLE_EXECUTABLE_FILE;
+let updater = null; // 没打包（npm start）时不检查更新，一直是 null
+let updateReady = null; // 已经下载好、等着安装的版本号
+let manualCheck = false; // 这次是不是从托盘菜单手动点的：手动的要把「已是最新」「检查失败」也说出来
+let offeredVersion = null; // 便携版：这次启动已经主动提示过的版本
+let updatePromptOpen = false;
+
+const updateBox = (message, detail, buttons = ['好']) =>
+  dialog.showMessageBox({ type: 'info', title: 'Buddy Pet 更新', message, detail, buttons, defaultId: 0, cancelId: buttons.length - 1, noLink: true });
+
+async function promptInstall(version) {
+  if (updatePromptOpen) return;
+  updatePromptOpen = true;
+  const { response } = await updateBox(
+    `新版本 ${version} 已经下载好了`,
+    `现在重启小狗就能用上（当前是 ${app.getVersion()}），设置和计划记录都会保留。\n选「稍后」的话，下次退出小狗时会自动装上。`,
+    ['现在重启更新', '稍后']
+  );
+  updatePromptOpen = false;
+  if (response === 0) updater.quitAndInstall(true, true); // 静默安装，装完自动重新打开
+}
+
+async function offerDownload(version) {
+  if (!manualCheck && offeredVersion === version) return;
+  offeredVersion = version;
+  const { response } = await updateBox(
+    `有新版本 ${version} 可以下载`,
+    `当前是 ${app.getVersion()}。便携版不能自动更新，要到下载页重新下载；换成安装版以后就能自动更新了。`,
+    ['打开下载页', '以后再说']
+  );
+  if (response === 0) shell.openExternal(RELEASES_URL);
+}
+
+async function checkForUpdates(manual) {
+  if (!updater) return manual && updateBox('现在是开发模式，不检查更新', '打包后的安装版和便携版才会检查。');
+  if (updateReady) return manual && promptInstall(updateReady);
+  manualCheck = manual;
+  try {
+    await updater.checkForUpdates();
+  } catch {
+    /* 断网之类的，在 error 事件里处理 */
+  }
+}
+
+function setupUpdater() {
+  if (!app.isPackaged) return;
+  updater = require('electron-updater').autoUpdater;
+  updater.autoDownload = !isPortable;
+  updater.autoInstallOnAppQuit = !isPortable;
+  updater.on('update-available', (info) => {
+    if (isPortable) offerDownload(info.version);
+    else if (manualCheck) updateBox(`发现新版本 ${info.version}`, '正在后台下载，下好了会再提示你。');
+    manualCheck = false;
+  });
+  updater.on('update-not-available', () => {
+    if (manualCheck) updateBox('已经是最新版本', `当前版本 ${app.getVersion()}。`);
+    manualCheck = false;
+  });
+  updater.on('update-downloaded', (info) => {
+    updateReady = info.version;
+    updateTray();
+    promptInstall(info.version);
+  });
+  updater.on('error', (e) => {
+    console.warn('[update]', e?.message);
+    if (manualCheck) updateBox('检查更新失败', '可能是网络连不上 GitHub，过一会儿再试。');
+    manualCheck = false;
+  });
+  setTimeout(() => checkForUpdates(false), 15_000);
+  setInterval(() => checkForUpdates(false), UPDATE_CHECK_MS);
 }
 
 // ---------------- IPC ----------------
@@ -486,9 +609,13 @@ ipcMain.handle('config:save', (_e, next) => {
     secret: String(next.secret || ''),
     name: String(next.name || '').trim(),
     idleMinutes: Math.max(1, Math.min(60, Number(next.idleMinutes) || 5)),
+    slackRemind: next.slackRemind === undefined ? config.slackRemind : !!next.slackRemind,
+    slackRemindMinutes: clampRemindMinutes(next.slackRemindMinutes ?? config.slackRemindMinutes),
     openAtLogin: !!next.openAtLogin,
     rules: next.rules || config.rules,
   };
+  // 摸鱼时的空闲时间不能比平时的短
+  config.slackIdleMinutes = Math.max(config.idleMinutes, Math.min(SLACK_IDLE_MAX, Number(next.slackIdleMinutes) || config.slackIdleMinutes || 20));
   // 复盘时间要晚于计划时间，否则保持原来的
   if (toMinutes(next.planTime) < toMinutes(next.reviewTime)) Object.assign(config, { planTime: next.planTime, reviewTime: next.reviewTime });
   saveConfig();
@@ -565,4 +692,5 @@ app.whenReady().then(() => {
   setInterval(pushState, 5000); // 刷新「x 分钟前」之类的显示 & 插件连接状态
   setTimeout(checkJournal, 5000);
   setInterval(checkJournal, JOURNAL_CHECK_MS);
+  setupUpdater();
 });

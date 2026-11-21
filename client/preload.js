@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('buddy', {
   onPoke: on('poke'),
   onPokeResult: on('poke-result'),
   onSelfAlert: on('self-alert'),
+  onRemind: on('remind'),
   onJournalEvent: on('journal-event'),
   onJournalChanged: on('journal-changed'),
   poke: (text) => ipcRenderer.invoke('poke', text),

@@ -9,6 +9,7 @@ const { classify, isBrowser } = require('./classifier');
 
 const MAX_TICK_SEC = 10; // 睡眠/卡顿时最多算 10 秒，避免一下子加很多
 const EXT_FRESH_MS = 90_000; // 插件每 30 秒心跳一次；超过 90 秒没消息就当作插件不在了
+const SLACK_IDLE_MINUTES = 20; // 摸鱼时空闲多久算离开的默认值（设置里可以改）
 const ACTIVE_IDLE_MS = 60_000; // 一分钟内动过键鼠就算「正在用电脑」
 const BREAKDOWN_TOP = 8; // 小狗卡片上的明细每类最多要几项
 const BREAKDOWN_NAME_MAX = 64;
@@ -45,7 +46,7 @@ function localDate(d = new Date()) {
 
 class ActivityTracker extends EventEmitter {
   /**
-   * @param {{dataDir:string, getRules:()=>any, getSettings:()=>{idleMinutes:number}, selfProcNames?:string[]}} opts
+   * @param {{dataDir:string, getRules:()=>any, getSettings:()=>{idleMinutes:number, slackIdleMinutes?:number}, selfProcNames?:string[]}} opts
    */
   constructor(opts) {
     super();
@@ -169,10 +170,12 @@ class ActivityTracker extends EventEmitter {
 
     let category = classify({ proc, title: sample.title, domain }, this.getRules());
 
-    // 空闲判定：看视频时常常不动鼠标，所以摸鱼类网站放宽到 20 分钟
+    // 空闲判定：看视频时常常不动鼠标，所以摸鱼类网站和应用单独放宽（默认 20 分钟），而且不会比平时的短
     const idleMin = (sample.idleMs || 0) / 60_000;
-    const idleLimit = this.getSettings().idleMinutes || 5;
-    if ((category !== 'slack' && idleMin >= idleLimit) || idleMin >= 20) category = 'away';
+    const settings = this.getSettings();
+    const idleLimit = settings.idleMinutes || 5;
+    const slackIdleLimit = Math.max(idleLimit, settings.slackIdleMinutes || SLACK_IDLE_MINUTES);
+    if (idleMin >= (category === 'slack' ? slackIdleLimit : idleLimit)) category = 'away';
 
     if (category === 'study' || category === 'away') this.slackStreakSec = 0;
     // 两个名单都不在的网站和应用（classify 给的 neutral）也算学习时间，小狗显示「学习中」、明细里记在学习下面。

@@ -79,9 +79,20 @@
         <label for="privateApps">🙈 隐私应用</label><textarea id="privateApps"></textarea>
         <div class="row">
           <div><label for="idleMinutes">键鼠空闲多少分钟算「离开」</label><input type="number" id="idleMinutes" min="1" max="60" /></div>
+          <div><label for="slackIdleMinutes">摸鱼时空闲多少分钟算「离开」</label><input type="number" id="slackIdleMinutes" min="1" max="120" /></div>
+        </div>
+        <div class="hint">在摸鱼网站和应用上常常是在看视频，不动鼠标也正常，所以单独放宽（默认 20 分钟），不能比左边的短。</div>
+        <div style="margin-top:10px"><button type="button" class="ghost" id="resetRules">恢复默认规则</button></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>摸鱼提醒</legend>
+        <div class="check"><input type="checkbox" id="slackRemind" /><label for="slackRemind">连续摸鱼太久时，弹窗提醒我该学习了</label></div>
+        <div class="row">
+          <div><label for="slackRemindMinutes">连续摸鱼多少分钟提醒</label><input type="number" id="slackRemindMinutes" min="1" max="240" /></div>
           <div></div>
         </div>
-        <div style="margin-top:10px"><button type="button" class="ghost" id="resetRules">恢复默认规则</button></div>
+        <div class="hint">到时间会弹出一个置顶的小窗口，要自己点掉，小狗也会冒气泡。还在摸鱼的话每隔同样的时间再提醒一次（填 20 就是 20、40、60 分钟…）。回到学习名单里的应用或离开电脑，计时清零。只提醒你自己，不会通知搭子。</div>
       </fieldset>
 
       <fieldset>

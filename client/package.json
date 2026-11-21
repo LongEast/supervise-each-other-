@@ -1,16 +1,17 @@
 {
   "name": "buddy-pet",
   "productName": "Buddy Pet",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "桌面小狗：和搭子互相监督学习",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "test": "cd ../tests && node --test",
-    "dist": "electron-builder --win nsis portable"
+    "dist": "electron-builder --win nsis portable --publish never"
   },
   "dependencies": {
+    "electron-updater": "^6.8.11",
     "ws": "^8.18.0"
   },
   "devDependencies": {
@@ -29,13 +30,22 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "Buddy-Pet-Setup-${version}.${ext}"
     },
     "portable": {
-      "unpackDirName": true
+      "unpackDirName": true,
+      "artifactName": "Buddy-Pet-${version}-portable.${ext}"
     },
     "directories": {
       "output": "dist"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "LongEast",
+        "repo": "supervise-each-other-"
+      }
+    ]
   }
 }

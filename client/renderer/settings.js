@@ -25,6 +25,9 @@ async function load() {
   $('secret').value = current.secret || '';
   $('name').value = current.name || '';
   $('idleMinutes').value = current.idleMinutes || 5;
+  $('slackIdleMinutes').value = current.slackIdleMinutes || 20;
+  $('slackRemind').checked = current.slackRemind !== false;
+  $('slackRemindMinutes').value = current.slackRemindMinutes || 20;
   $('openAtLogin').checked = !!current.openAtLogin;
   $('planTime').value = current.planTime || '09:00';
   $('reviewTime').value = current.reviewTime || '22:00';
@@ -54,12 +57,18 @@ $('form').addEventListener('submit', async (e) => {
     secret: $('secret').value,
     name: $('name').value,
     idleMinutes: $('idleMinutes').value,
+    slackIdleMinutes: $('slackIdleMinutes').value,
+    slackRemind: $('slackRemind').checked,
+    slackRemindMinutes: $('slackRemindMinutes').value,
     openAtLogin: $('openAtLogin').checked,
     planTime: $('planTime').value,
     reviewTime: $('reviewTime').value,
     rules,
   });
   current = await buddy.getConfig();
+  // 主进程会把不合法的数字改掉（比如摸鱼时的空闲时间填得比平时短），把实际存下的显示出来
+  $('slackIdleMinutes').value = current.slackIdleMinutes;
+  $('slackRemindMinutes').value = current.slackRemindMinutes;
   $('saved').textContent = '已保存 ✓';
   setTimeout(() => ($('saved').textContent = ''), 2500);
 });

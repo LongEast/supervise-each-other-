@@ -74,3 +74,39 @@ test('右键小狗能换成显示自己的状态：小狗和名牌都接了右�
   assert.match(main, /petView: config\.petView,/); // 要推给小狗窗口
   assert.match(main, /submenu: petViewItems\(\)/); // 托盘菜单里也有入口，小狗隐藏时也能切
 });
+
+test('连续摸鱼提醒：开关和时间在设置里，到点弹置顶窗口，不抢焦点', () => {
+  const main = read('main.js');
+  assert.match(main, /slackRemind: true,/); // 默认开，和以前一直开着的气泡提醒接上
+  assert.match(main, /if \(level > remindSeen && config\.slackRemind\) showSlackReminder\(/);
+  assert.match(main, /else if \(level === 0\) closeSlackReminder\(\);/); // 回去学习了窗口自己关
+  assert.match(main, /remindWin\.setAlwaysOnTop\(true, 'screen-saver'\)/);
+  assert.match(main, /remindWin\?\.showInactive\(\)/); // 用 show() 的话，正在打的字会落到提醒窗口上
+  assert.doesNotMatch(main, /SELF_ALERT_MINUTES/); // 旧的固定 20/40/60 档已经并进来了
+  const html = read('renderer/settings.html');
+  for (const id of ['slackRemind', 'slackRemindMinutes', 'slackIdleMinutes']) {
+    assert.match(html, new RegExp(`id="${id}"`));
+    assert.match(read('renderer/settings.js'), new RegExp(`${id}: \\$\\('${id}'\\)`), `${id} 要随设置一起保存`);
+  }
+  assert.match(read('renderer/remind.html'), /<script src="remind\.js">/);
+  assert.match(read('renderer/remind.js'), /buddy\.onRemind\(show\)/);
+  assert.match(read('preload.js'), /onRemind: on\('remind'\)/);
+});
+
+test('自动更新：从 GitHub Release 查新版本，安装版自动下载，便携版只提示去下载页', () => {
+  const pkg = JSON.parse(read('package.json'));
+  const pub = pkg.build.publish[0];
+  assert.equal(pub.provider, 'github');
+  assert.ok(pkg.dependencies['electron-updater'], 'electron-updater 要在 dependencies 里，放 devDependencies 不会被打进安装包');
+  assert.match(pkg.scripts.dist, /--publish never/); // 打包只出文件，上传 Release 是另一步
+  // 文件名不能带空格：GitHub 会把空格换成点，和 latest.yml 里记的名字对不上，更新就找不到安装包
+  assert.equal(pkg.build.nsis.artifactName, 'Buddy-Pet-Setup-${version}.${ext}');
+  assert.equal(pkg.build.portable.artifactName, 'Buddy-Pet-${version}-portable.${ext}');
+  const main = read('main.js');
+  const m = /const RELEASES_URL = 'https:\/\/github\.com\/([^/]+)\/([^/]+)\/releases\/latest'/.exec(main);
+  assert.ok(m, 'main.js 里要有 RELEASES_URL');
+  assert.deepEqual([m[1], m[2]], [pub.owner, pub.repo]);
+  assert.match(main, /if \(!app\.isPackaged\) return;\s*updater = require\('electron-updater'\)\.autoUpdater;/); // npm start 时不查
+  assert.match(main, /updater\.autoDownload = !isPortable;/);
+  assert.match(main, /setInterval\(checkJournal, JOURNAL_CHECK_MS\);\s*setupUpdater\(\);/);
+});
