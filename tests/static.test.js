@@ -57,4 +57,20 @@ test('页面里用到的共享脚本都在它前面加载（names.js 给小狗�
   }
   assert.match(read('renderer/names.js'), /function entryName\(/);
   assert.doesNotMatch(read('renderer/pet.js'), /const APP_NAMES/); // 只留一份
+  // pet-view.js 决定小狗演谁，pet.js 一加载就要用
+  const pet = read('renderer/pet.html');
+  const view = pet.indexOf('<script src="pet-view.js">');
+  assert.ok(view > 0 && view < pet.indexOf('<script src="pet.js">'));
+  assert.doesNotMatch(read('renderer/pet.js'), /function friendView\(/);
+});
+
+test('右键小狗能换成显示自己的状态：小狗和名牌都接了右键，主进程弹菜单并记住选择', () => {
+  const pet = read('renderer/pet.js');
+  assert.match(pet, /for \(const id of \['pet', 'nametag'\]\) \{\s*\$\(id\)\.addEventListener\('contextmenu'/);
+  assert.match(pet, /buddy\.petMenu\(\)/);
+  const main = read('main.js');
+  assert.match(main, /ipcMain\.on\('pet:menu', showPetMenu\)/);
+  assert.match(main, /petView: c\.petView === 'me' \? 'me' : 'friend'/); // 配置文件里是别的值就当默认
+  assert.match(main, /petView: config\.petView,/); // 要推给小狗窗口
+  assert.match(main, /submenu: petViewItems\(\)/); // 托盘菜单里也有入口，小狗隐藏时也能切
 });

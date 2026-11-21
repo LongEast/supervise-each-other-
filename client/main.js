@@ -56,12 +56,19 @@ const DEFAULT_CONFIG = {
   rules: DEFAULT_RULES,
   petPos: null,
   petScale: 1, // 小狗的大小，1 = 100%
+  petView: 'friend', // 小狗演谁：'friend' 搭子 | 'me' 我自己（右键小狗切换）
 };
 
 function loadConfig() {
   try {
     const c = JSON.parse(fs.readFileSync(configFile, 'utf8'));
-    return { ...DEFAULT_CONFIG, ...c, petScale: clampScale(c.petScale), rules: { ...DEFAULT_RULES, ...(c.rules || {}) } };
+    return {
+      ...DEFAULT_CONFIG,
+      ...c,
+      petScale: clampScale(c.petScale),
+      petView: c.petView === 'me' ? 'me' : 'friend',
+      rules: { ...DEFAULT_RULES, ...(c.rules || {}) },
+    };
   } catch {
     return { ...DEFAULT_CONFIG };
   }
@@ -105,9 +112,11 @@ function viewState() {
     me: { name: config.name, status: tracker.getStatus(), todaySec: tracker.todaySec(), breakdown: tracker.breakdown() },
     friend,
     friendJournal: friend ? progress(journal.friendToday(friend.name, friend.online)) : null, // { total, done, reviewed }，没写计划是 null
+    myJournal: progress(journal.mine()), // 小狗演自己时卡片上显示的计划进度
     connection: { state: relay.state, error: relay.lastError },
     extConnected: tracker.extConnected(),
     petScale: config.petScale,
+    petView: config.petView,
   };
 }
 function pushState() {
@@ -326,6 +335,41 @@ function setPetScale(next) {
   updateTray();
 }
 
+const togglePause = () => {
+  tracker.setPaused(!tracker.paused);
+  updateTray();
+};
+
+// 小狗演谁：搭子（默认）还是我自己。演自己时看到的是发给搭子的那份状态
+function setPetView(view) {
+  const next = view === 'me' ? 'me' : 'friend';
+  if (next === config.petView) return;
+  config.petView = next;
+  saveConfig();
+  pushState();
+  updateTray();
+}
+// 右键菜单和托盘菜单共用的两个单选项。托盘菜单不是每次收到消息都重建，所以那边不带搭子的名字
+function petViewItems(who = '搭子') {
+  return [
+    { label: `显示${who}的状态`, type: 'radio', checked: config.petView !== 'me', click: () => setPetView('friend') },
+    { label: '显示我自己的状态', type: 'radio', checked: config.petView === 'me', click: () => setPetView('me') },
+  ];
+}
+// 右键小狗弹出来的菜单
+function showPetMenu() {
+  if (!petWin || petWin.isDestroyed()) return;
+  // 菜单里单个 & 会被当成快捷键标记
+  const who = friend?.name ? ` ${friend.name.replace(/&/g, '&&')} ` : '搭子';
+  Menu.buildFromTemplate([
+    ...petViewItems(who),
+    { type: 'separator' },
+    { label: tracker.paused ? '▶ 恢复分享' : '⏸ 暂停分享（处理私事）', click: togglePause },
+    { label: '今日时长明细', click: () => openStats() },
+    { label: '设置…', click: openSettings },
+  ]).popup({ window: petWin });
+}
+
 function openSettings() {
   if (settingsWin && !settingsWin.isDestroyed()) {
     if (settingsWin.isMinimized()) settingsWin.restore();
@@ -357,10 +401,7 @@ function updateTray() {
       { type: 'separator' },
       {
         label: tracker.paused ? '▶ 恢复分享' : '⏸ 暂停分享（处理私事）',
-        click: () => {
-          tracker.setPaused(!tracker.paused);
-          updateTray();
-        },
+        click: togglePause,
       },
       {
         label: petWin?.isVisible() ? '隐藏小狗' : '显示小狗',
@@ -380,6 +421,7 @@ function updateTray() {
           click: () => setPetScale(s),
         })),
       },
+      { label: '小狗显示谁（也可以右键小狗）', submenu: petViewItems() },
       { type: 'separator' },
       { label: `今日计划${planLabel}`, click: () => openJournal('plan') },
       { label: `明日计划${tomorrowLabel}`, click: openTomorrowPlan },
@@ -429,6 +471,7 @@ ipcMain.on('pet:drag', (_e, phase) => {
 });
 // 在小狗身上滚滚轮：dir > 0 放大一格，< 0 缩小一格
 ipcMain.on('pet:scale', (_e, dir) => setPetScale(config.petScale + (dir > 0 ? SCALE_STEP : -SCALE_STEP)));
+ipcMain.on('pet:menu', showPetMenu);
 ipcMain.handle('poke', (_e, text) => {
   const ok = relay.send({ type: 'poke', text: String(text || '').slice(0, 140) });
   return { sent: ok, reason: ok ? '' : '还没连上服务器' };
@@ -498,10 +541,7 @@ ipcMain.handle('stats:get', () => {
     friend: st?.todaySec ? { name: friend.name, todaySec: st.todaySec, breakdown: st.breakdown || null } : null,
   };
 });
-ipcMain.on('toggle-pause', () => {
-  tracker.setPaused(!tracker.paused);
-  updateTray();
-});
+ipcMain.on('toggle-pause', togglePause);
 
 // ---------------- 启动 ----------------
 app.on('second-instance', () => {

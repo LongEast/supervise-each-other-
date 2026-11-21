@@ -124,6 +124,7 @@ body.dragging #pet, body.dragging .nametag { cursor: grabbing; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.nametag.me { background: rgba(122, 78, 38, 0.92); } /* 小狗演自己时名牌换个颜色，一眼能分清看的是谁 */
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--neutral); flex: none; }
 .dot.study { background: #6fd394; }
 .dot.slack { background: #ff9a62; }

@@ -1,4 +1,4 @@
-/* global buddy, siteName, appName, entryName */
+/* global buddy, siteName, appName, entryName, friendView, petView */
 const $ = (id) => document.getElementById(id);
 
 const STATE_LABEL = {
@@ -18,6 +18,11 @@ let ignoring = true;
 document.addEventListener('mousemove', (e) => {
   if (dragging) return buddy.dragPet('move');
   if (pressAt && Math.hypot(e.screenX - pressAt.x, e.screenY - pressAt.y) > DRAG_THRESHOLD) return startDrag();
+  // 右键菜单关掉后鼠标可能还停在小狗身上，这时不会再来一次 mouseenter，靠这里把卡片接回来
+  if (!hovering && e.target.closest('#pet')) {
+    hovering = true;
+    updateOverlays();
+  }
   const over = !!e.target.closest('.hit');
   if (over === !ignoring) return;
   ignoring = !over;
@@ -72,6 +77,18 @@ $('pet').addEventListener(
   { passive: false }
 );
 
+// ---------- 右键：换小狗演谁（搭子 / 我自己），菜单由主进程弹 ----------
+for (const id of ['pet', 'nametag']) {
+  $(id).addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    // 系统菜单开着的时候收不到鼠标离开的事件，先把卡片收起来，免得一直挂在那儿
+    hovering = false;
+    detail = null;
+    updateOverlays();
+    buddy.petMenu();
+  });
+}
+
 // ---------- 工具 ----------
 function fmtDur(sec) {
   sec = Math.max(0, Math.round(sec || 0));
@@ -80,20 +97,12 @@ function fmtDur(sec) {
   if (h) return `${h}h${String(m).padStart(2, '0')}m`;
   return `${m}m`;
 }
-function friendView() {
-  const f = state?.friend;
-  if (!f) return { key: 'offline', name: null };
-  if (!f.online) return { key: 'offline', name: f.name, status: f.status };
-  const s = f.status;
-  if (!s) return { key: 'neutral', name: f.name, status: null };
-  if (s.paused) return { key: 'paused', name: f.name, status: s };
-  return { key: s.category || 'neutral', name: f.name, status: s };
-}
+// v 是 pet-view.js 给的 { key, name, status, me }；v.me 表示小狗现在演的是自己
 function whatText(v) {
   const s = v.status;
   if (v.key === 'offline') return '不在线';
-  if (v.key === 'paused') return 'TA 暂时关闭了状态分享';
-  if (v.key === 'private') return '正在用一个隐私应用';
+  if (v.key === 'paused') return v.me ? '已暂停分享，搭子看不到你的状态' : 'TA 暂时关闭了状态分享';
+  if (v.key === 'private') return v.me ? '正在用隐私应用，搭子只看到「隐私模式」' : '正在用一个隐私应用';
   if (!s) return '还没收到状态';
   const a = appName(s.app);
   const site = siteName(s.domain);
@@ -115,7 +124,9 @@ const el = (cls, text = '') => {
 };
 
 // 今日学习 / 摸鱼：自己那行一直有（没连上、暂停分享时也有）；搭子在线且在分享状态时再加一行。
-function statRows(v) {
+// 小狗演谁都是这两行，所以这里只看搭子的状态。
+function statRows() {
+  const v = friendView(state);
   const row = (id, who, t, breakdown) => ({ id, who, t: { study: num(t?.study), slack: num(t?.slack) }, breakdown });
   const rows = [row('me', '我', state?.me?.todaySec, state?.me?.breakdown)];
   if (v.name && v.key !== 'offline' && v.status?.todaySec) rows.push(row('friend', v.name, v.status.todaySec, v.status.breakdown));
@@ -124,8 +135,8 @@ function statRows(v) {
 
 // 两行的进度条用同一个刻度，谁长谁短一眼能比出来。时长可以点，点了看明细。
 let statsSig = '';
-function renderStats(v) {
-  const rows = statRows(v);
+function renderStats() {
+  const rows = statRows();
   const scale = Math.max(1, ...rows.map((r) => r.t.study + r.t.slack));
   const pct = (sec) => Math.round((sec / scale) * 100);
   // 显示出来的内容没变就不重建：正在点的时候把元素换掉，这次点击会丢
@@ -153,9 +164,9 @@ function renderStats(v) {
 
 // 明细：这个人今天的学习 / 摸鱼时间花在了哪些网站（域名）和应用上
 let detailSig = '';
-function renderDetail(v) {
+function renderDetail() {
   if (!detail) return;
-  const row = statRows(v).find((r) => r.id === detail.who);
+  const row = statRows().find((r) => r.id === detail.who);
   if (!row) return void (detail = null); // 搭子下线了，那一行已经没有了
   const { cat } = detail;
   const total = row.t[cat];
@@ -204,14 +215,20 @@ function renderDetail(v) {
 
 function render() {
   document.documentElement.style.setProperty('--pet-scale', String(state?.petScale || 1));
-  const v = friendView();
+  const v = petView(state); // 小狗现在演的人：搭子，或者（右键切过去的）自己
   const wrap = $('petWrap');
   wrap.className = `state-${v.key === 'private' || v.key === 'neutral' ? 'neutral' : v.key}`;
+  if (v.me) menuOpen = false; // 戳一戳的菜单是给搭子的
 
   const conn = state?.connection?.state;
   const nameText = $('nameText');
   const dot = $('dot');
-  if (conn !== 'online') {
+  $('nametag').classList.toggle('me', !!v.me);
+  if (v.me) {
+    // 自己的状态是本机算的，连没连上服务器都有
+    nameText.textContent = `我 · ${STATE_LABEL[v.key] || ''}`;
+    dot.className = `dot ${v.key}`;
+  } else if (conn !== 'online') {
     nameText.textContent = conn === 'connecting' ? '连接中…' : '未连接';
     dot.className = 'dot offline';
   } else if (!v.name) {
@@ -223,19 +240,22 @@ function render() {
   }
 
   // 卡片
-  $('cardName').textContent = v.name || '还没有搭子';
+  $('cardName').textContent = v.me ? (v.name ? `我（${v.name}）` : '我') : v.name || '还没有搭子';
   const badge = $('cardBadge');
   badge.textContent = STATE_LABEL[v.key] || '—';
   badge.className = `badge ${v.key}`;
-  if (conn !== 'online') {
+  if (v.me) {
+    $('cardWhat').textContent = whatText(v);
+    $('cardHint').textContent = `${conn === 'online' ? '点我看今日计划' : '未连接，搭子看不到'} · 右键换回搭子`;
+  } else if (conn !== 'online') {
     $('cardWhat').textContent = state?.connection?.error || '没有连上服务器';
-    $('cardHint').textContent = '点我打开设置';
+    $('cardHint').textContent = '点我打开设置 · 右键看自己';
   } else {
     $('cardWhat').textContent = v.name ? whatText(v) : '把房间号和密码发给你的朋友吧';
-    $('cardHint').textContent = v.name && v.key !== 'offline' ? '点我戳 TA 一下' : '';
+    $('cardHint').textContent = v.name && v.key !== 'offline' ? '点我戳 TA 一下 · 右键看自己' : '右键可以看自己的状态';
   }
-  renderStats(v);
-  renderDetail(v);
+  renderStats();
+  renderDetail();
   const streak = v.status?.slackStreakSec || 0;
   const streakEl = $('cardStreak');
   if (v.key === 'slack' && streak >= 300) {
@@ -243,14 +263,14 @@ function render() {
     streakEl.classList.remove('hidden');
   } else streakEl.classList.add('hidden');
 
-  // 对方的今日计划进度
+  // 今日计划进度：演谁就是谁的
   const plan = $('cardPlan');
-  const fj = state?.friendJournal;
-  plan.classList.toggle('hidden', !v.name || conn !== 'online');
+  const fj = v.me ? state?.myJournal : state?.friendJournal;
+  plan.classList.toggle('hidden', !v.me && (!v.name || conn !== 'online'));
   plan.classList.toggle('has', !!fj);
   plan.textContent = fj ? `计划 ${fj.done}/${fj.total}${fj.reviewed ? ' · 已复盘' : ''}` : '还没写今日计划';
 
-  $('menuName').textContent = v.name || 'TA';
+  $('menuName').textContent = friendView(state).name || 'TA';
   $('pauseLink').textContent = state?.me?.status?.paused ? '恢复分享我的状态' : '暂停分享我的状态';
   updateOverlays();
 }
@@ -320,8 +340,9 @@ $('detailBack').addEventListener('click', (e) => {
 });
 $('pet').addEventListener('click', () => {
   if (dragJustEnded) return; // 刚才是拖动，不是点击
-  hideBubble();
   detail = null;
+  hideBubble();
+  if (state?.petView === 'me') return buddy.openJournal('plan'); // 演自己的时候没有谁可戳，点一下看自己的今日计划
   if (state?.connection?.state !== 'online') return buddy.openSettings();
   menuOpen = !menuOpen;
   setMenuMsg('');
@@ -417,7 +438,8 @@ buddy.onPoke(({ from, text }) => {
 buddy.onJournalEvent(({ from, kind }) => {
   animate('jump');
   const what = kind === 'review' ? '今日复盘 🌙' : '今日计划 📝';
-  showBubble(`<b>${esc(from)}</b> 写好了${what}<span class="sub">点小狗可以查看 TA 的计划</span>`, { ms: 12000 });
+  const how = state?.petView === 'me' ? '右键换回搭子后，点小狗可以查看' : '点小狗可以查看 TA 的计划';
+  showBubble(`<b>${esc(from)}</b> 写好了${what}<span class="sub">${how}</span>`, { ms: 12000 });
 });
 buddy.onSelfAlert(({ minutes, friend }) => {
   animate('shake');
