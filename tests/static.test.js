@@ -75,6 +75,35 @@ test('右键小狗能换成显示自己的状态：小狗和名牌都接了右�
   assert.match(main, /submenu: petViewItems\(\)/); // 托盘菜单里也有入口，小狗隐藏时也能切
 });
 
+test('换形象：右键菜单和托盘菜单里能选，选择会记住；每套形象都画齐了各个状态要用的部件', () => {
+  const main = read('main.js');
+  assert.match(main, /petSkin: 'dog',/); // 默认还是小狗
+  assert.match(main, /petSkin: validSkin\(c\.petSkin\),/); // 配置文件里是不认识的名字就当默认
+  assert.match(main, /petSkin: config\.petSkin,/); // 要推给小狗窗口
+  const menu = main.slice(main.indexOf('function showPetMenu()'), main.indexOf('function hidePet()'));
+  assert.match(menu, /submenu: petSkinItems\(\)/);
+  assert.equal(main.match(/submenu: petSkinItems\(\)/g).length, 2); // 另一个在托盘菜单里，小狗隐藏时也能换
+
+  const skins = [...main.slice(main.indexOf('const PET_SKINS = ['), main.indexOf('const validSkin')).matchAll(/\['(\w+)', '[^']+'\]/g)].map((m) => m[1]);
+  assert.deepEqual(skins, ['dog', 'cat']);
+  const html = read('renderer/pet.html');
+  const css = read('renderer/pet.css');
+  assert.match(read('renderer/pet.js'), /document\.documentElement\.dataset\.skin = state\?\.petSkin \|\| 'dog';/);
+  const starts = skins.map((id) => html.indexOf(`<g class="skin skin-${id}">`));
+  skins.forEach((id, i) => {
+    assert.ok(starts[i] > 0, `pet.html 里没有 ${id} 的形象`);
+    // 状态和动作的样式是按这些 class 写的，少一个那个状态就演不出来
+    const part = html.slice(starts[i], starts[i + 1] > 0 ? starts[i + 1] : html.indexOf('class="prop prop-zzz"'));
+    for (const cls of ['pup', 'tail', 'head', 'eyes-open', 'eye', 'lid', 'eyes-closed', 'prop prop-laptop', 'prop prop-phone']) {
+      assert.match(part, new RegExp(`class="${cls}[ "]`), `${id} 缺少 ${cls}`);
+    }
+    // 默认形象不用写规则，其他的都要有「选中才显示」
+    if (id !== 'dog') assert.ok(css.includes(`[data-skin="${id}"] .skin-${id} { display: inline; }`), `${id} 选中后要显示出来`);
+  });
+  assert.match(css, /\.skin-cat, \[data-skin="cat"\] \.skin-dog \{ display: none; \}/); // 一次只显示一套
+  assert.equal(html.match(/<svg /g).length, 1); // 两套画在同一个 #pet 里：拖动、滚轮、右键、点击都只接了它
+});
+
 test('右键小狗的菜单里能隐藏和退出：不用去找托盘图标', () => {
   const main = read('main.js');
   const menu = main.slice(main.indexOf('function showPetMenu()'), main.indexOf('function openSettings()'));

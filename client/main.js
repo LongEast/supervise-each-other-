@@ -68,7 +68,14 @@ const DEFAULT_CONFIG = {
   petPos: null,
   petScale: 1, // 小狗的大小，1 = 100%
   petView: 'friend', // 小狗演谁：'friend' 搭子 | 'me' 我自己（右键小狗切换）
+  petSkin: 'dog', // 形象：见 PET_SKINS（右键小狗 →「换个形象」）
 };
+// 可以换的形象：[配置里存的名字, 菜单上显示的名字]。画在 renderer/pet.html 里，一套一个 <g class="skin skin-名字">
+const PET_SKINS = [
+  ['dog', '🐶 小狗'],
+  ['cat', '🐱 小猫'],
+];
+const validSkin = (s) => (PET_SKINS.some(([id]) => id === s) ? s : 'dog');
 
 function loadConfig() {
   try {
@@ -78,6 +85,7 @@ function loadConfig() {
       ...c,
       petScale: clampScale(c.petScale),
       petView: c.petView === 'me' ? 'me' : 'friend',
+      petSkin: validSkin(c.petSkin),
       slackRemindMinutes: clampRemindMinutes(c.slackRemindMinutes),
       slackRemindOptions: remindOptions(c.slackRemindOptions, clampRemindMinutes(c.slackRemindMinutes)),
       pomodoroFocusMinutes: clampFocusMinutes(c.pomodoroFocusMinutes),
@@ -144,6 +152,7 @@ function viewState() {
     extConnected: tracker.extConnected(),
     petScale: config.petScale,
     petView: config.petView,
+    petSkin: config.petSkin,
     pomodoro: pomodoro.phase ? { phase: pomodoro.phase, endsAt: pomodoro.endsAt } : null, // 小狗头上的倒计时
   };
 }
@@ -535,6 +544,19 @@ function petViewItems(who = '搭子') {
     { label: '显示我自己的状态', type: 'radio', checked: config.petView === 'me', click: () => setPetView('me') },
   ];
 }
+// 换形象：只改自己桌面上这只长什么样，演的还是同一个人，搭子那边不受影响
+function setPetSkin(skin) {
+  const next = validSkin(skin);
+  if (next === config.petSkin) return;
+  config.petSkin = next;
+  saveConfig();
+  pushState();
+  updateTray();
+}
+// 右键菜单和托盘菜单共用
+function petSkinItems() {
+  return PET_SKINS.map(([id, label]) => ({ label, type: 'radio', checked: config.petSkin === id, click: () => setPetSkin(id) }));
+}
 // 右键小狗弹出来的菜单
 function showPetMenu() {
   if (!petWin || petWin.isDestroyed()) return;
@@ -542,6 +564,7 @@ function showPetMenu() {
   const who = friend?.name ? ` ${friend.name.replace(/&/g, '&&')} ` : '搭子';
   Menu.buildFromTemplate([
     ...petViewItems(who),
+    { label: '换个形象', submenu: petSkinItems() },
     { type: 'separator' },
     ...pomodoroItems(true),
     { type: 'separator' },
@@ -611,6 +634,7 @@ function updateTray() {
         })),
       },
       { label: '小狗显示谁（也可以右键小狗）', submenu: petViewItems() },
+      { label: '换个形象（也可以右键小狗）', submenu: petSkinItems() },
       { type: 'separator' },
       ...pomodoroItems(false),
       { type: 'separator' },

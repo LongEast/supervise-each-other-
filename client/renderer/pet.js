@@ -215,6 +215,7 @@ function renderDetail() {
 
 function render() {
   document.documentElement.style.setProperty('--pet-scale', String(state?.petScale || 1));
+  document.documentElement.dataset.skin = state?.petSkin || 'dog'; // 形象：pet.css 按它决定显示哪一套
   const v = petView(state); // 小狗现在演的人：搭子，或者（右键切过去的）自己
   const wrap = $('petWrap');
   wrap.className = `state-${v.key === 'private' || v.key === 'neutral' ? 'neutral' : v.key}`;

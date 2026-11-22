@@ -107,6 +107,39 @@ body.dragging #pet, body.dragging .nametag { cursor: grabbing; }
 @keyframes shake { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-9deg); } 75% { transform: rotate(9deg); } }
 @keyframes jump { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-14px); } }
 
+/* ---------------- 换形象：小猫 ---------------- */
+/* 主进程给的 petSkin 写在 <html data-skin> 上。小猫沿用上面的状态和动作，这里只管它自己的颜色和表情 */
+.skin-cat, [data-skin="cat"] .skin-dog { display: none; }
+[data-skin="cat"] .skin-cat { display: inline; }
+.skin-cat { --fur: #fff; --fur-dark: #a9abb1; --ink: #26262b; --line: #4a4a52; }
+/* 白猫放在浅色桌面上会看不见，所以整只都描边 */
+.skin-cat .fur, .skin-cat .fur-dark { stroke: var(--line); stroke-width: 2; stroke-linejoin: round; }
+.cat-fill { fill: var(--fur); }
+.cat-edge { fill: var(--line); stroke: var(--line); stroke-width: 4; }
+.cat-toe { fill: none; stroke: var(--line); stroke-width: 1.4; stroke-linecap: round; }
+.cat-outline { fill: none; stroke: var(--line); stroke-width: 2; }
+.cat-patch { fill: var(--fur-dark); }
+.cat-ear-in { fill: #84868d; }
+.cat-iris { fill: #e6e37c; }
+.cat-pink { fill: #f29aa9; }
+.cat-mouth { fill: #7d2a35; stroke: var(--line); stroke-width: 2; stroke-linejoin: round; }
+.cat-fang { fill: #fff; }
+.cat-tail-edge, .cat-tail-fill { fill: none; stroke-linecap: round; }
+.cat-tail-edge { stroke: var(--line); stroke-width: 11; }
+.cat-tail-fill { stroke: var(--fur-dark); stroke-width: 7; }
+.skin-cat .mouth-open, .skin-cat .paws-up { display: none; }
+/* 在电脑前：半眯着眼 */
+.state-neutral .skin-cat .lid { display: inline; }
+/* 摸鱼、蹦一下、鼠标放上来（没睡着的时候）：张嘴举爪 */
+:is(.state-slack, .jump) .skin-cat :is(.mouth-open, .paws-up),
+#petWrap:is(.state-study, .state-neutral) #pet:hover .skin-cat :is(.mouth-open, .paws-up) { display: inline; }
+:is(.state-slack, .jump) .skin-cat .mouth-closed,
+#petWrap:is(.state-study, .state-neutral) #pet:hover .skin-cat .mouth-closed { display: none; }
+.state-slack .skin-cat .beans-r { display: none; } /* 右爪举着手机，肉垫朝里 */
+/* 猫耳朵比狗耳朵高：Zzz 和番茄钟倒计时都让一让 */
+[data-skin="cat"] .prop-zzz { transform: translate(6px, -2px); }
+[data-skin="cat"] .pomo { margin-top: -10px; }
+
 /* ---------------- 番茄钟倒计时 ---------------- */
 /* 贴在小狗左上角的空白处；小狗缩小以后那里放不下，就往上挪一点。不挡鼠标 */
 .pomo {
