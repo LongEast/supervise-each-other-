@@ -29,6 +29,12 @@ function fillRemindSelect(list, picked) {
   $('slackRemindMinutes').replaceChildren(...list.map((n) => new Option(`${n} 分钟`, String(n), n === picked, n === picked)));
 }
 
+function fillPomodoro() {
+  $('pomodoroFocusMinutes').value = current.pomodoroFocusMinutes || 25;
+  $('pomodoroBreakMinutes').value = current.pomodoroBreakMinutes || 5;
+  $('pomodoroBreakCounts').checked = !!current.pomodoroBreakCounts;
+}
+
 async function load() {
   current = await buddy.getConfig();
   $('serverUrl').value = current.serverUrl || '';
@@ -39,6 +45,7 @@ async function load() {
   $('slackIdleMinutes').value = current.slackIdleMinutes || 20;
   $('slackRemind').checked = current.slackRemind !== false;
   fillRemind(current.slackRemindOptions, current.slackRemindMinutes);
+  fillPomodoro();
   $('openAtLogin').checked = !!current.openAtLogin;
   $('planTime').value = current.planTime || '09:00';
   $('reviewTime').value = current.reviewTime || '22:00';
@@ -77,6 +84,9 @@ $('form').addEventListener('submit', async (e) => {
     slackRemind: $('slackRemind').checked,
     slackRemindMinutes: $('slackRemindMinutes').value,
     slackRemindOptions: $('slackRemindOptions').value,
+    pomodoroFocusMinutes: $('pomodoroFocusMinutes').value,
+    pomodoroBreakMinutes: $('pomodoroBreakMinutes').value,
+    pomodoroBreakCounts: $('pomodoroBreakCounts').checked,
     openAtLogin: $('openAtLogin').checked,
     planTime: $('planTime').value,
     reviewTime: $('reviewTime').value,
@@ -86,6 +96,7 @@ $('form').addEventListener('submit', async (e) => {
   // 主进程会把不合法的数字改掉（比如摸鱼时的空闲时间填得比平时短），把实际存下的显示出来
   $('slackIdleMinutes').value = current.slackIdleMinutes;
   fillRemind(current.slackRemindOptions, current.slackRemindMinutes);
+  fillPomodoro();
   $('saved').textContent = '已保存 ✓';
   setTimeout(() => ($('saved').textContent = ''), 2500);
 });

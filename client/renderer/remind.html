@@ -22,16 +22,21 @@
     .foot a:hover { color: #2e2a26; }
     select { font: inherit; color: #2e2a26; border: 1px solid #e0d8ce; border-radius: 7px; padding: 2px 4px; background: #fff; outline: none; cursor: pointer; }
     select:focus { border-color: #e5a96a; }
+    [hidden] { display: none !important; }
   </style>
 </head>
 <body>
   <main>
-    <div class="dog">🐶</div>
-    <h1>该学习啦！</h1>
-    <p class="what">你已经连续摸鱼 <b id="minutes">—</b> 了</p>
+    <div id="icon" class="dog">🐶</div>
+    <h1 id="title">该学习啦！</h1>
+    <!-- 连续摸鱼太久 -->
+    <p id="whatSlack" class="what">你已经连续摸鱼 <b id="minutes">—</b> 了</p>
+    <!-- 番茄钟：休息结束了还在摸鱼 -->
+    <p id="whatFocus" class="what" hidden>休息时间结束了，新一轮 <b id="focusMinutes">—</b>专注已经开始</p>
     <p id="friend" class="friend"></p>
     <button id="ok" type="button">这就去学习 💪</button>
-    <p class="foot"><label for="next">还在摸鱼的话，再过</label> <select id="next"></select> 提醒我 · <a href="#" id="settings">设置</a></p>
+    <p id="footSlack" class="foot"><label for="next">还在摸鱼的话，再过</label> <select id="next"></select> 提醒我 · <a href="#" class="settings">设置</a></p>
+    <p id="footFocus" class="foot" hidden>今天不想继续了？<a href="#" id="stopPomodoro">结束番茄钟</a> · <a href="#" class="settings">设置</a></p>
   </main>
   <script src="remind.js"></script>
 </body>

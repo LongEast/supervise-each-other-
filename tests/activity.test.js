@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { ActivityTracker, localDate, parseSampleLine } = require('../client/activity');
+const { ActivityTracker, localDate, parseSampleLine, REST_APP } = require('../client/activity');
 const { DEFAULT_RULES } = require('../client/classifier');
 
 function makeTracker(t, rules = DEFAULT_RULES, settings = { idleMinutes: 5 }) {
@@ -304,4 +304,75 @@ test('lastInputAt：一分钟内动过键鼠才算在用电脑；前台是小狗
   assert.equal(tr.lastInputAt, 4000);
   tr.onSample({ proc: 'Code', title: '', idleMs: 90_000 }, 6000);
   assert.equal(tr.lastInputAt, 4000);
+});
+
+// ---------- 番茄钟的休息时间 ----------
+/** 每 2 秒采样一次，连续 sec 秒；返回结束的时刻 */
+function feed(tr, sample, from, sec) {
+  for (let t = 0; t <= sec; t += 2) tr.onSample(sample, from + t * 1000);
+  return from + sec * 1000;
+}
+const STUDY = { proc: 'Code', title: 'a.js', idleMs: 0 };
+const SLACK = { proc: 'steam', title: '', idleMs: 0 };
+
+test('番茄钟休息（默认）：摸鱼不算摸鱼时间，也不算学习时间，连续摸鱼不往上涨', (t) => {
+  const tr = makeTracker(t);
+  let now = feed(tr, SLACK, Date.now(), 60);
+  assert.equal(tr.getStatus().todaySec.slack, 60);
+  assert.equal(tr.getStatus().slackStreakSec, 60);
+  tr.setRest('free');
+  assert.equal(tr.getStatus().slackStreakSec, 0); // 开始休息：之前的连续摸鱼一笔勾销
+  now = feed(tr, SLACK, now, 300);
+  const s = tr.getStatus();
+  assert.deepEqual(s.todaySec, { study: 0, slack: 60, neutral: 0 });
+  assert.equal(s.slackStreakSec, 0);
+  assert.equal(s.category, 'slack'); // 状态还是照实显示
+  assert.equal(s.breakdown.slack[0].sec, 60);
+  // 休息结束还在摸鱼：从这时候重新开始算
+  tr.setRest(null);
+  feed(tr, SLACK, now, 30);
+  assert.equal(tr.getStatus().todaySec.slack, 90);
+  assert.equal(tr.getStatus().slackStreakSec, 30);
+});
+
+test('番茄钟休息（默认）：休息时接着学习的照常算学习', (t) => {
+  const tr = makeTracker(t);
+  tr.setRest('free');
+  feed(tr, STUDY, Date.now(), 120);
+  assert.equal(tr.getStatus().todaySec.study, 120);
+  assert.deepEqual(tr.breakdown().study, [{ app: 'Code', sec: 120 }]);
+});
+
+test('番茄钟休息算学习时间：摸鱼、离开电脑都整段记成学习，明细里单独一项', (t) => {
+  const tr = makeTracker(t);
+  tr.setRest('study');
+  let now = feed(tr, SLACK, Date.now(), 120);
+  now = feed(tr, { proc: 'Code', title: '', idleMs: 10 * 60_000 }, now, 180); // 起身去倒水
+  const s = tr.getStatus();
+  assert.deepEqual(s.todaySec, { study: 300, slack: 0, neutral: 0 });
+  assert.equal(s.slackStreakSec, 0);
+  assert.deepEqual(tr.breakdown().study, [{ app: REST_APP, sec: 300 }]);
+  assert.deepEqual(tr.breakdown().slack, []);
+  // 休息结束后回到平时的算法：离开电脑不计时
+  tr.setRest(null);
+  feed(tr, { proc: 'Code', title: '', idleMs: 10 * 60_000 }, now, 60);
+  assert.equal(tr.getStatus().todaySec.study, 300);
+});
+
+test('番茄钟休息：暂停分享期间照样不计时；休息中途改设置不会把连续摸鱼清掉第二次', (t) => {
+  const tr = makeTracker(t);
+  tr.setRest('study');
+  tr.setPaused(true);
+  let now = feed(tr, SLACK, Date.now(), 60);
+  assert.deepEqual(tr.todaySec(), { study: 0, slack: 0, neutral: 0 });
+  tr.setPaused(false);
+  tr.setRest(null);
+  now = feed(tr, SLACK, now, 40);
+  tr.setRest(null); // 没在休息时重复调用（比如保存设置）不影响连续摸鱼
+  assert.equal(tr.getStatus().slackStreakSec, 40);
+  tr.setRest('free');
+  tr.setRest('study'); // 休息中途勾上「算学习」
+  assert.equal(tr.rest, 'study');
+  tr.setRest('whatever');
+  assert.equal(tr.rest, 'free'); // 认不出来的值按默认的算
 });

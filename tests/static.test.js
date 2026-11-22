@@ -116,3 +116,50 @@ test('自动更新：从 GitHub Release 查新版本，安装版自动下载，�
   assert.match(main, /updater\.autoDownload = !isPortable;/);
   assert.match(main, /setInterval\(checkJournal, JOURNAL_CHECK_MS\);\s*setupUpdater\(\);/);
 });
+
+test('番茄钟：右键小狗开始，时长和「休息算不算学习」在设置里，到休息只冒气泡，休息结束还在摸鱼才弹窗', () => {
+  const main = read('main.js');
+  // 默认 25 + 5，休息默认不算学习时间
+  assert.match(main, /pomodoroFocusMinutes: POMO_FOCUS_DEFAULT,/);
+  assert.match(main, /pomodoroBreakMinutes: POMO_BREAK_DEFAULT,/);
+  assert.match(main, /pomodoroBreakCounts: false,/);
+  assert.match(main, /pomodoroBreakCounts: c\.pomodoroBreakCounts === true,/); // 配置文件里是别的值就当没勾
+  // 右键菜单里能开始 / 结束，托盘菜单里也有（小狗隐藏时也能用）
+  assert.match(main, /\.\.\.pomodoroItems\(true\),[\s\S]*\]\)\.popup\(\{ window: petWin \}\)/);
+  assert.match(main, /\.\.\.pomodoroItems\(false\),/);
+  assert.match(main, /label: `🍅 开始番茄钟[^`]*`, click: startPomodoro/);
+  assert.match(main, /label: '结束番茄钟', click: stopPomodoro/);
+  // 弹窗只在 nudge（休息结束了还在摸鱼）时出现；到休息时间（break）走的是小狗气泡
+  assert.match(main, /if \(events\.includes\('nudge'\)\) showRemindWindow\(\{ kind: 'focus',/);
+  assert.equal(main.match(/showRemindWindow\(\{/g).length, 2); // 另一个是连续摸鱼提醒
+  assert.match(main, /petWin\.webContents\.send\('pomodoro-event',/);
+  // 休息时间怎么计时：勾了整段算学习，没勾的话休息时摸鱼不算摸鱼
+  assert.match(main, /tracker\.setRest\(pomodoro\.phase === 'break' \? \(config\.pomodoroBreakCounts \? 'study' : 'free'\) : null\)/);
+  assert.match(main, /saveConfig\(\);[\s\S]*?syncRest\(\);/); // 休息中途改了设置马上生效
+  // 发给搭子的状态都带番茄钟（暂停分享时不带）
+  assert.doesNotMatch(main, /status: tracker\.getStatus\(\)/);
+  assert.match(main, /if \(s\.paused \|\| !pomodoro\.phase\) return s;/);
+
+  const html = read('renderer/settings.html');
+  const js = read('renderer/settings.js');
+  for (const id of ['pomodoroFocusMinutes', 'pomodoroBreakMinutes', 'pomodoroBreakCounts']) {
+    assert.match(html, new RegExp(`id="${id}"`));
+    assert.match(js, new RegExp(`${id}: \\$\\('${id}'\\)`), `${id} 要随设置一起保存`);
+    assert.match(main, new RegExp(`${id}: [^\\n]*next\\.${id}`), `${id} 保存时主进程要收下`);
+  }
+
+  // 小狗窗口：倒计时、卡片上的一行、气泡
+  const pet = read('renderer/pet.js');
+  assert.match(read('renderer/pet.html'), /id="pomo"/);
+  assert.match(read('renderer/pet.html'), /id="cardPomo"/);
+  assert.match(pet, /buddy\.onPomodoro\(/);
+  assert.match(pet, /setInterval\(renderPomo, 1000\)/);
+  assert.match(read('renderer/pet.css'), /\.pomo \{[^}]*pointer-events: none;/); // 倒计时不挡鼠标，不然小狗那一角点不到
+  assert.match(read('preload.js'), /onPomodoro: on\('pomodoro-event'\)/);
+
+  // 「该专注啦」和「该学习啦」共用一个窗口
+  const remind = read('renderer/remind.js');
+  assert.match(remind, /const focus = kind === 'focus';/);
+  assert.match(remind, /buddy\.stopPomodoro\(\)/);
+  assert.match(read('renderer/remind.html'), /id="whatFocus"[^>]* hidden>/);
+});

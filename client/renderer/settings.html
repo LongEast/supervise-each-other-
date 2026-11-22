@@ -96,6 +96,16 @@
       </fieldset>
 
       <fieldset>
+        <legend>番茄钟</legend>
+        <div class="row">
+          <div><label for="pomodoroFocusMinutes">每次专注多少分钟</label><input type="number" id="pomodoroFocusMinutes" min="1" max="180" /></div>
+          <div><label for="pomodoroBreakMinutes">每次休息多少分钟</label><input type="number" id="pomodoroBreakMinutes" min="1" max="60" /></div>
+        </div>
+        <div class="check"><input type="checkbox" id="pomodoroBreakCounts" /><label for="pomodoroBreakCounts">休息时间也计入学习时间</label></div>
+        <div class="hint">右键小狗 →「开始番茄钟」，专注和休息轮着来，直到右键选「结束番茄钟」；小狗头上有倒计时。到休息时间只冒气泡；休息结束时要是还在摸鱼，会弹窗提醒该专注了。<br />休息时摸鱼不算摸鱼时间，也不会弹摸鱼提醒。不勾上面这项的话休息时间也不算学习时间（休息时还在接着学的照常算）；勾上就整段休息都算学习，离开电脑也算。一整轮都没碰电脑，番茄钟会自己停掉。正在进行的这一段不受改动影响，新的时长从下一段开始生效。</div>
+      </fieldset>
+
+      <fieldset>
         <legend>计划和复盘</legend>
         <div class="row">
           <div><label for="planTime">计划提醒时间</label><input type="time" id="planTime" required /></div>

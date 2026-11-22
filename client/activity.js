@@ -17,6 +17,7 @@ const BREAKDOWN_NAME_MAX = 64;
 // 服务器单条消息上限 8KB，超了会被直接断开，所以宁可少发几项
 const WIRE_TOP = 30;
 const WIRE_MAX_BYTES = 5000;
+const REST_APP = '🍅 番茄钟休息'; // 番茄钟的休息算进学习时间时，明细里记在这个名字下面
 
 const emptyToday = (date) => ({ date, sec: { study: 0, slack: 0, neutral: 0 }, by: { study: {}, slack: {} } });
 
@@ -60,6 +61,7 @@ class ActivityTracker extends EventEmitter {
     this.lastTickAt = null;
     this.lastInputAt = 0; // 最近一次确认用户在用电脑的时间（用来决定要不要弹今日计划）
     this.slackStreakSec = 0;
+    this.rest = null; // 番茄钟休息中：'free' 摸鱼不算摸鱼 | 'study' 整段算学习 | null 没在休息
     this.today = this._loadToday();
     this.child = null;
     this._stopped = false;
@@ -138,6 +140,17 @@ class ActivityTracker extends EventEmitter {
     this.emit('change', this.getStatus());
   }
 
+  /**
+   * 番茄钟的休息开始 / 结束。休息是说好的，所以这段时间里摸鱼不记摸鱼时长、不算连续摸鱼；
+   * mode 是 'study'（设置里勾了「休息时间也计入学习时间」）的话整段都记成学习，离开电脑也算。
+   * @param {'free'|'study'|null} mode
+   */
+  setRest(mode) {
+    const next = mode === 'study' ? 'study' : mode ? 'free' : null;
+    if (next && !this.rest) this.slackStreakSec = 0; // 开始休息：之前的连续摸鱼一笔勾销
+    this.rest = next;
+  }
+
   // ---------- 核心逻辑 ----------
   onSample(sample, now = Date.now()) {
     this._rollDay();
@@ -146,8 +159,16 @@ class ActivityTracker extends EventEmitter {
     this.lastTickAt = now;
 
     // 先把这段时间记到「上一个」状态上
-    if (!this.paused && dt > 0) {
-      const c = this.current.category;
+    const c = this.current.category;
+    if (this.paused || dt <= 0) {
+      /* 暂停分享期间不计时 */
+    } else if (this.rest === 'study') {
+      // 番茄钟休息，而且休息算学习：不管在干什么（摸鱼、离开电脑）整段都记成学习
+      this.today.sec.study += dt;
+      this.today.by.study[`a:${REST_APP}`] = (this.today.by.study[`a:${REST_APP}`] || 0) + dt;
+    } else if (this.rest && c === 'slack') {
+      /* 番茄钟休息时摸鱼：不算摸鱼，也不算学习。休息时接着学习的照常往下记 */
+    } else {
       if (c === 'study' || c === 'slack' || c === 'neutral') this.today.sec[c] += dt;
       else if (c === 'private') this.today.sec.neutral += dt; // 隐私应用不算学习也不算摸鱼
       if (c === 'slack') this.slackStreakSec += dt;
@@ -270,4 +291,4 @@ class ActivityTracker extends EventEmitter {
   }
 }
 
-module.exports = { ActivityTracker, localDate, parseSampleLine };
+module.exports = { ActivityTracker, localDate, parseSampleLine, REST_APP };
