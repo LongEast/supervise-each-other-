@@ -17,6 +17,12 @@
     .friend { color: #8b847c; margin: 6px 0 0; min-height: 18px; }
     button { font: inherit; font-size: 14px; margin-top: 14px; border-radius: 9px; padding: 9px 26px; cursor: pointer; border: 1px solid #2e2a26; background: #2e2a26; color: #fff; }
     button:hover { background: #000; }
+    /* 「休息结束啦」：主按钮下面的小箭头，点开是「再休息一会」 */
+    button.more { margin-top: 2px; padding: 0 22px; border-color: transparent; background: transparent; color: #8b847c; font-size: 17px; line-height: 22px; }
+    button.more:hover { background: transparent; color: #2e2a26; }
+    button.more[aria-expanded="true"] { transform: rotate(180deg); }
+    button.ghost { margin-top: 2px; padding: 7px 22px; font-size: 13px; background: #fff; color: #2e2a26; border-color: #e0d8ce; }
+    button.ghost:hover { background: #f3ede5; }
     .foot { margin: 12px 0 0; color: #8b847c; font-size: 12px; }
     .foot a { color: inherit; }
     .foot a:hover { color: #2e2a26; }
@@ -31,12 +37,15 @@
     <h1 id="title">该学习啦！</h1>
     <!-- 连续摸鱼太久 -->
     <p id="whatSlack" class="what">你已经连续摸鱼 <b id="minutes">—</b> 了</p>
-    <!-- 番茄钟：休息结束了还在摸鱼 -->
-    <p id="whatFocus" class="what" hidden>休息时间结束了，新一轮 <b id="focusMinutes">—</b>专注已经开始</p>
+    <!-- 番茄钟：休息结束了，点了「重新开始」才开始下一轮 -->
+    <p id="whatFocus" class="what" hidden>准备好了就开始新一轮 <b id="focusMinutes">—</b>专注</p>
     <p id="friend" class="friend"></p>
     <button id="ok" type="button">这就去学习 💪</button>
+    <button id="resume" type="button" hidden>重新开始番茄钟 🍅</button>
+    <button id="more" class="more" type="button" aria-expanded="false" aria-controls="restMore" title="还没休息够？" hidden>▾</button>
+    <button id="restMore" class="ghost" type="button" hidden>再休息一会</button>
     <p id="footSlack" class="foot"><label for="next">还在摸鱼的话，再过</label> <select id="next"></select> 提醒我 · <a href="#" class="settings">设置</a></p>
-    <p id="footFocus" class="foot" hidden>今天不想继续了？<a href="#" id="stopPomodoro">结束番茄钟</a> · <a href="#" class="settings">设置</a></p>
+    <p id="footFocus" class="foot" hidden>不想用番茄钟了？<a href="#" id="stopPomodoro">恢复默认模式</a> · <a href="#" class="settings">设置</a></p>
   </main>
   <script src="remind.js"></script>
 </body>

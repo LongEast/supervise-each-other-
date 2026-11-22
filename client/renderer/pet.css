@@ -125,6 +125,7 @@ body.dragging #pet, body.dragging .nametag { cursor: grabbing; }
   pointer-events: none;
 }
 .pomo.break { background: rgba(62, 138, 93, 0.94); }
+.pomo.wait { background: rgba(92, 85, 78, 0.94); } /* 休息结束，等着点「重新开始」 */
 
 /* ---------------- 名牌（可拖动） ---------------- */
 .nametag {
@@ -178,6 +179,7 @@ body.dragging #pet, body.dragging .nametag { cursor: grabbing; }
 .card-streak { color: var(--slack); font-weight: 600; margin-bottom: 6px; }
 .card-pomo { color: #c2452f; font-weight: 600; margin-bottom: 6px; }
 .card-pomo.break { color: var(--study); }
+.card-pomo.wait { color: #8b847c; }
 /* 今日统计：名字 | 进度条 | 学习 | 摸鱼，一人一行 */
 .stats { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 3px 8px; font-size: 11.5px; }
 .stats-head { color: var(--muted); font-size: 10.5px; }

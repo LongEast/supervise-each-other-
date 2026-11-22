@@ -270,6 +270,10 @@ function render() {
     const left = Math.max(1, Math.ceil(num(pomo.leftSec) / 60));
     pomoEl.textContent = `🍅 番茄钟${pomo.phase === 'focus' ? '专注中' : '休息中'} · 还剩 ${left} 分钟`;
     pomoEl.className = `card-pomo ${pomo.phase}`;
+  } else if (pomo?.phase === 'wait' && v.key !== 'offline' && v.key !== 'paused') {
+    // 休息结束了，还没点「重新开始」
+    pomoEl.textContent = '🍅 番茄钟 · 休息结束，还没开始下一轮';
+    pomoEl.className = 'card-pomo wait';
   } else pomoEl.className = 'card-pomo hidden';
   renderPomo();
 
@@ -290,6 +294,12 @@ function renderPomo() {
   const p = state?.pomodoro;
   const box = $('pomo');
   if (!p) return void box.classList.add('hidden');
+  if (p.phase === 'wait') {
+    // 休息结束了，等着点「重新开始」：没有倒计时
+    box.textContent = '🍅 等你开始';
+    box.className = 'pomo wait';
+    return;
+  }
   const left = Math.max(0, Math.ceil((p.endsAt - Date.now()) / 1000));
   box.textContent = `${p.phase === 'break' ? '☕' : '🍅'} ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
   box.className = `pomo ${p.phase}`;
@@ -467,22 +477,22 @@ buddy.onSelfAlert(({ minutes, friend }) => {
   const who = friend ? esc(friend) : '你的搭子';
   showBubble(`你已经连续摸鱼 <b>${minutes} 分钟</b>啦 🐟<span class="sub">${who} 能看到哦，回去干活吧～</span>`, { self: true, ms: 12000 });
 });
-// 番茄钟：开始、到休息时间、休息结束都只冒气泡（休息结束还在摸鱼的话，主进程另外会弹窗）
-buddy.onPomodoro(({ kind, minutes, done, skipped }) => {
+// 番茄钟：开始、到休息时间、休息结束都冒气泡（休息结束时主进程另外会弹窗，等你选要不要开始下一轮）
+buddy.onPomodoro(({ kind, minutes, done, skipped, again }) => {
   const n = Math.round(Number(minutes) || 0);
   const say = (html, sub, ms = 12000) => showBubble(`${html}<span class="sub">${sub}</span>`, { self: true, ms });
   if (kind === 'start') say(`番茄钟开始 🍅 专注 <b>${n} 分钟</b>`, '到休息时间小狗会叫你 · 右键小狗可以结束');
   else if (kind === 'break') {
     animate('jump');
-    const head = skipped ? '那就先休息' : `第 ${Math.max(1, Math.round(Number(done) || 0))} 个番茄完成 🍅 休息`;
+    const head = again ? '那就再休息' : skipped ? '那就先休息' : `第 ${Math.max(1, Math.round(Number(done) || 0))} 个番茄完成 🍅 休息`;
     say(`${head} <b>${n} 分钟</b>吧 ☕`, '休息结束小狗会叫你', 15000);
   } else if (kind === 'focus') {
+    // 都是自己点的（重新开始 / 跳过休息）
     animate('jump');
-    if (skipped) say(`开始专注 <b>${n} 分钟</b> 🍅`, '加油～');
-    else say('休息结束，<b>该专注啦</b> 💪', `新一轮 ${n} 分钟专注开始了`, 15000);
-  } else if (kind === 'nudge') {
-    animate('shake');
-    say('休息结束啦，<b>别摸鱼了</b> 🐟', `新一轮 ${n} 分钟专注已经开始`, 15000);
+    say(`开始专注 <b>${n} 分钟</b> 🍅`, '加油～');
+  } else if (kind === 'wait') {
+    animate('jump');
+    say('休息结束啦 ☕', '点「重新开始番茄钟」才会开始新一轮 · 右键小狗也能选', 15000);
   } else if (kind === 'idle') {
     // 人不在的时候停的，气泡留着等回来看
     say('好一阵没碰电脑，番茄钟先停了 🍅', '右键小狗可以重新开始 · 点击关闭', 8 * 3600_000);

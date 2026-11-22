@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('buddy', {
   scalePet: (dir) => ipcRenderer.send('pet:scale', dir),
   petMenu: () => ipcRenderer.send('pet:menu'),
   remindNext: (minutes) => ipcRenderer.send('remind:next', minutes),
+  resumePomodoro: () => ipcRenderer.send('pomodoro:resume'),
+  restMorePomodoro: () => ipcRenderer.send('pomodoro:rest'),
   stopPomodoro: () => ipcRenderer.send('pomodoro:stop'),
   openSettings: () => ipcRenderer.send('open-settings'),
   togglePause: () => ipcRenderer.send('toggle-pause'),

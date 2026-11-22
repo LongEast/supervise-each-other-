@@ -119,14 +119,14 @@ let petWin = null;
 let settingsWin = null;
 const journalWins = {}; // 'plan:2026-01-02' 这样的 key → 窗口
 let statsWin = null; // 「今日时长明细」窗口
-let remindWin = null; // 「该学习啦」/「该专注啦」提醒窗口
-let remindKind = null; // 窗口上现在显示的是哪种：'slack' 连续摸鱼 | 'focus' 番茄钟休息结束
+let remindWin = null; // 「该学习啦」/「休息结束啦」提醒窗口
+let remindKind = null; // 窗口上现在显示的是哪种：'slack' 连续摸鱼 | 'focus' 番茄钟休息结束，等着点「重新开始」
 let tray = null;
 const reminder = new SlackReminder(); // 这一轮连续摸鱼提醒到哪了
 const pomodoro = new Pomodoro(); // 番茄钟（右键小狗开始），重启后不接着跑
 let pomoTimer = null;
 
-// 发给搭子的状态；番茄钟开着的话带上现在是专注还是休息、还剩多久（暂停分享时不带）
+// 发给搭子的状态；番茄钟开着的话带上现在是专注、休息还是等着开始下一轮（wait），还剩多久（暂停分享时不带）
 function myStatus() {
   const s = tracker.getStatus();
   if (s.paused || !pomodoro.phase) return s;
@@ -275,25 +275,29 @@ function openStats({ who, cat } = {}) {
   statsWin.on('closed', () => (statsWin = null));
 }
 
-// ---------------- 「该学习啦」/「该专注啦」提醒 ----------------
+// ---------------- 「该学习啦」/「休息结束啦」提醒 ----------------
 // 置顶的小窗口，要自己点掉；小狗同时抖一下、冒个气泡。只提醒自己，不发给搭子。
-// 两种提醒共用一个窗口（renderer/remind.html），info.kind 决定显示哪种。
+// 两种提醒共用一个窗口（renderer/remind.html），info.kind 决定显示哪种：
+// 'slack' 连续摸鱼太久；'focus' 番茄钟的休息结束了，等着选「重新开始 / 再休息一会 / 恢复默认模式」。
 const watchingFriend = () => (relay.state === 'online' && friend?.online ? friend.name : ''); // 搭子这会儿真的看得到才提
 
 function showRemindWindow(info) {
-  remindKind = info.kind;
   if (remindWin && !remindWin.isDestroyed()) {
-    // 上一次的还没点掉：原地换成新的内容，不叠第二个窗口
-    remindWin.webContents.send('remind', info);
-    return remindWin.showInactive();
+    if (remindKind === info.kind) {
+      // 上一次的还没点掉：原地换成新的内容，不叠第二个窗口
+      remindWin.webContents.send('remind', info);
+      return remindWin.showInactive();
+    }
+    remindWin.destroy(); // 两种提醒的窗口不一样高，换一种就重开
   }
-  const size = { width: 380, height: 300 };
+  remindKind = info.kind;
+  const size = { width: 380, height: info.kind === 'focus' ? 320 : 300 }; // 「休息结束啦」多一排按钮
   const wa = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea; // 弹在正在用的那块屏幕上
-  remindWin = new BrowserWindow({
+  const win = (remindWin = new BrowserWindow({
     ...size,
     x: Math.round(wa.x + (wa.width - size.width) / 2),
     y: Math.round(wa.y + (wa.height - size.height) / 3),
-    title: info.kind === 'focus' ? '该专注啦' : '该学习啦',
+    title: info.kind === 'focus' ? '休息结束啦' : '该学习啦',
     show: false,
     autoHideMenuBar: true,
     resizable: false,
@@ -301,14 +305,17 @@ function showRemindWindow(info) {
     minimizable: false,
     alwaysOnTop: true,
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
-  });
+  }));
   remindWin.setAlwaysOnTop(true, 'screen-saver');
   remindWin.loadFile(path.join(__dirname, 'renderer', 'remind.html'), {
     query: Object.fromEntries(Object.entries(info).map(([k, v]) => [k, Array.isArray(v) ? v.join(',') : String(v)])),
   });
   // 不抢焦点：正在打字的话，按键不会落到这个窗口上
   remindWin.once('ready-to-show', () => remindWin?.showInactive());
-  remindWin.on('closed', () => (remindWin = null));
+  // 换了一种提醒时旧窗口是先销毁再开新的：旧窗口的 closed 不能把新窗口的引用清掉
+  win.on('closed', () => {
+    if (remindWin === win) remindWin = null;
+  });
 }
 /** 把提醒窗口收起来；给了 kind 的话，只在窗口上显示的是这一种时才收 */
 function closeRemindWindow(kind) {
@@ -318,6 +325,8 @@ function closeRemindWindow(kind) {
 // 连续摸鱼太久
 function showSlackReminder(minutes) {
   petWin?.webContents.send('self-alert', { minutes, friend: friend?.name || '' });
+  // 番茄钟的「休息结束啦」还没点掉：那个窗口要留着等你选，这次只冒气泡
+  if (remindWin && !remindWin.isDestroyed() && remindKind === 'focus') return;
   showRemindWindow({
     kind: 'slack',
     minutes,
@@ -326,14 +335,14 @@ function showSlackReminder(minutes) {
     friend: watchingFriend(),
   });
 }
-// 回去学习（或者离开、开始番茄钟的休息）了：不管窗口上是哪种提醒都收起来
+// 回去学习（或者离开、开始番茄钟的休息）了：「该学习啦」收起来。番茄钟的「休息结束啦」要等你选，不跟着关
 function closeSlackReminder() {
-  closeRemindWindow();
+  closeRemindWindow('slack');
 }
 
 // ---------------- 番茄钟 ----------------
-// 专注 → 休息 → 专注 … 一直循环，右键小狗开始 / 结束。到休息时间只冒气泡；
-// 休息结束时还在摸鱼才弹「该专注啦」的窗口。计时规则在 pomodoro.js。
+// 专注 → 休息 → 等你点「重新开始」→ 专注 … 一直循环，右键小狗开始 / 结束。到休息时间只冒气泡；
+// 休息结束时弹「休息结束啦」的窗口，点了「重新开始番茄钟」才接着计时。计时规则在 pomodoro.js。
 const pomoSettings = () => ({ focusMinutes: config.pomodoroFocusMinutes, breakMinutes: config.pomodoroBreakMinutes });
 
 // 休息时间怎么计时交给 tracker：设置里勾了就整段算学习；没勾的话休息时摸鱼不算摸鱼
@@ -343,8 +352,8 @@ function syncRest() {
 
 // 小狗隐藏着的时候气泡看不到，换成系统通知
 const POMO_NOTICE = {
-  break: (m) => ['🍅 专注结束，休息一下吧', `休息 ${m} 分钟，结束时会再叫你`],
-  focus: (m) => ['🍅 休息结束，该专注啦', `新一轮 ${m} 分钟专注开始了`],
+  break: (m, x) => [x.again ? '🍅 再休息一会' : '🍅 专注结束，休息一下吧', `休息 ${m} 分钟，结束时会再叫你`],
+  wait: () => ['🍅 休息结束啦', '在弹出的窗口里点「重新开始番茄钟」，新一轮才开始计时'],
   idle: () => ['🍅 番茄钟已结束', '好一阵没碰电脑，先停了。右键小狗可以重新开始'],
 };
 
@@ -355,12 +364,12 @@ function pomodoroChanged(kind, extra = {}) {
     clearInterval(pomoTimer);
     pomoTimer = null;
   }
-  if (kind !== 'nudge') closeRemindWindow('focus'); // 换了一段或者结束了，上一次的「该专注啦」不用留着
+  if (kind !== 'wait') closeRemindWindow('focus'); // 换了一段或者结束了，「休息结束啦」不用留着
   const minutes = pomodoro.minutes;
   if (petWin && !petWin.isDestroyed() && petWin.isVisible()) {
     petWin.webContents.send('pomodoro-event', { kind, minutes, done: pomodoro.done, ...extra });
   } else if (POMO_NOTICE[kind] && Notification.isSupported()) {
-    const [title, body] = POMO_NOTICE[kind](minutes);
+    const [title, body] = POMO_NOTICE[kind](minutes, extra);
     new Notification({ title, body, silent: false }).show();
   }
   relay.send({ type: 'status', status: myStatus() });
@@ -383,14 +392,18 @@ function skipPomodoro() {
   const phase = pomodoro.skip(Date.now(), pomoSettings());
   if (phase) pomodoroChanged(phase, { skipped: true });
 }
+// 休息结束后选的：重新开始专注 / 再休息一会（弹窗里点的，或者右键菜单、托盘菜单里点的）
+function resumePomodoro() {
+  if (pomodoro.resume(Date.now(), pomoSettings())) pomodoroChanged('focus');
+}
+function restMorePomodoro() {
+  if (pomodoro.restMore(Date.now(), pomoSettings())) pomodoroChanged('break', { again: true });
+}
 function tickPomodoro() {
-  // 暂停分享（处理私事）时不看在干什么，和连续摸鱼提醒一样
-  const activity = { category: tracker.paused ? null : tracker.current.category, lastInputAt: tracker.lastInputAt };
-  const events = pomodoro.tick(Date.now(), activity, pomoSettings());
-  if (events.includes('settled')) closeRemindWindow('focus');
-  if (events.includes('nudge')) showRemindWindow({ kind: 'focus', minutes: pomodoro.minutes, friend: watchingFriend() });
-  // 休息结束时正好在摸鱼：弹窗和气泡说的是一回事，不用再冒一个「开始专注」
-  const kind = ['idle', 'break', 'nudge', 'focus'].find((k) => events.includes(k));
+  const events = pomodoro.tick(Date.now(), { lastInputAt: tracker.lastInputAt }, pomoSettings());
+  // 休息结束：不自己开始下一轮，弹窗等你选。窗口被直接关掉的话还停在这儿，右键小狗也能选
+  if (events.includes('wait')) showRemindWindow({ kind: 'focus', ...pomoSettings() });
+  const kind = ['idle', 'break', 'wait'].find((k) => events.includes(k));
   if (kind) pomodoroChanged(kind);
 }
 
@@ -398,6 +411,14 @@ function tickPomodoro() {
 function pomodoroItems(withTime) {
   const { focusMinutes, breakMinutes } = pomoSettings();
   if (!pomodoro.phase) return [{ label: `🍅 开始番茄钟（专注 ${focusMinutes} 分钟 / 休息 ${breakMinutes} 分钟）`, click: startPomodoro }];
+  if (pomodoro.phase === 'wait') {
+    return [
+      { label: '🍅 休息结束，等你开始下一轮', enabled: false },
+      { label: `重新开始番茄钟（专注 ${focusMinutes} 分钟）`, click: resumePomodoro },
+      { label: `再休息一会（${breakMinutes} 分钟）`, click: restMorePomodoro },
+      { label: '结束番茄钟', click: stopPomodoro },
+    ];
+  }
   const focus = pomodoro.phase === 'focus';
   const left = withTime ? ` · 还剩 ${Math.max(1, Math.ceil(pomodoro.leftSec(Date.now()) / 60))} 分钟` : '';
   return [
@@ -722,7 +743,10 @@ ipcMain.on('pet:scale', (_e, dir) => setPetScale(config.petScale + (dir > 0 ? SC
 ipcMain.on('pet:menu', showPetMenu);
 // 提醒窗口里改了「再过 X 分钟提醒我」：只管下一次，从现在的连续摸鱼时长往后数
 ipcMain.on('remind:next', (_e, minutes) => reminder.snooze(minutes, tracker.paused ? 0 : tracker.slackStreakSec));
-ipcMain.on('pomodoro:stop', stopPomodoro); // 「该专注啦」窗口里的「结束番茄钟」
+// 「休息结束啦」窗口里的三个选择
+ipcMain.on('pomodoro:resume', resumePomodoro);
+ipcMain.on('pomodoro:rest', restMorePomodoro);
+ipcMain.on('pomodoro:stop', stopPomodoro); // 「恢复默认模式」：不再用番茄钟计时
 ipcMain.handle('poke', (_e, text) => {
   const ok = relay.send({ type: 'poke', text: String(text || '').slice(0, 140) });
   return { sent: ok, reason: ok ? '' : '还没连上服务器' };

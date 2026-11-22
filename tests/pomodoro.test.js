@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { Pomodoro, clampFocusMinutes, clampBreakMinutes, POMO_FOCUS_DEFAULT, POMO_BREAK_DEFAULT, POMO_FOCUS_MAX, POMO_BREAK_MAX, SETTLE_SEC } = require('../client/pomodoro');
+const { Pomodoro, clampFocusMinutes, clampBreakMinutes, POMO_FOCUS_DEFAULT, POMO_BREAK_DEFAULT, POMO_FOCUS_MAX, POMO_BREAK_MAX } = require('../client/pomodoro');
 
 const MIN = 60_000;
 const T0 = 1_700_000_000_000;
@@ -43,102 +43,97 @@ test('没开的时候什么都不发生', () => {
   assert.deepEqual(p.tick(T0, { category: 'slack' }, DEFAULTS), []);
   assert.equal(p.leftSec(T0), 0);
   assert.equal(p.skip(T0, DEFAULTS), null);
+  assert.equal(p.resume(T0, DEFAULTS), null);
+  assert.equal(p.restMore(T0, DEFAULTS), null);
 });
 
-test('专注 25 分钟 → 休息 5 分钟 → 专注 …，一直循环', () => {
+test('专注 25 分钟 → 休息 5 分钟 → 停下来等着点「重新开始」，不会自己开始下一轮', () => {
   const p = new Pomodoro();
   p.start(T0, DEFAULTS);
   assert.equal(p.phase, 'focus');
   assert.equal(p.minutes, 25);
   assert.equal(p.leftSec(T0), 25 * 60);
   assert.equal(p.leftSec(T0 + 10 * MIN + 400), 15 * 60); // 不满一秒的往上取，倒计时不会提前跳
-  const events = run(p, T0, T0 + 61 * MIN, { category: 'study' });
+  // 休息结束后又过了 20 分钟也没点：一直停在 wait，只有一次 'wait' 事件
+  const events = run(p, T0, T0 + 50 * MIN, (now) => ({ lastInputAt: now }));
   assert.deepEqual(events, [
     [25 * 60, 'break'],
-    [30 * 60, 'focus'],
-    [55 * 60, 'break'],
-    [60 * 60, 'focus'],
+    [30 * 60, 'wait'],
   ]);
+  assert.equal(p.phase, 'wait');
+  assert.equal(p.done, 1);
+  assert.deepEqual([p.minutes, p.endsAt, p.leftSec(T0 + 50 * MIN)], [0, 0, 0]); // 没有倒计时
+});
+
+test('resume：点了「重新开始番茄钟」，新一轮专注从点的那一刻算起', () => {
+  const p = new Pomodoro();
+  p.start(T0, DEFAULTS);
+  run(p, T0, T0 + 33 * MIN, (now) => ({ lastInputAt: now }));
+  assert.equal(p.phase, 'wait');
+  const at = T0 + 33 * MIN;
+  assert.equal(p.resume(at, DEFAULTS), 'focus');
+  assert.equal(p.leftSec(at), 25 * 60); // 等的那 3 分钟不算在专注里
+  assert.deepEqual(run(p, at, at + 31 * MIN, (now) => ({ lastInputAt: now })), [
+    [(33 + 25) * 60, 'break'],
+    [(33 + 30) * 60, 'wait'],
+  ]);
+  assert.equal(p.done, 2);
+  // 只有 wait 时能点
+  p.start(T0, DEFAULTS);
+  assert.equal(p.resume(T0 + MIN, DEFAULTS), null);
+  assert.equal(p.leftSec(T0 + MIN), 24 * 60);
+});
+
+test('restMore：点了「再休息一会」，按现在设置里的休息时长再休息一段，结束后还是等着点', () => {
+  const p = new Pomodoro();
+  p.start(T0, DEFAULTS);
+  run(p, T0, T0 + 31 * MIN, (now) => ({ lastInputAt: now }));
+  const at = T0 + 31 * MIN;
+  assert.equal(p.restMore(at, { focusMinutes: 25, breakMinutes: 10 }), 'break'); // 中途把休息改成了 10 分钟
+  assert.equal(p.phase, 'break');
+  assert.equal(p.minutes, 10);
+  assert.equal(p.leftSec(at), 10 * 60);
+  assert.equal(p.done, 1); // 多休息一段不算番茄
+  assert.deepEqual(run(p, at, at + 12 * MIN, (now) => ({ lastInputAt: now })), [[(31 + 10) * 60, 'wait']]);
+  // 专注和休息的时候不能点
+  p.start(T0, DEFAULTS);
+  assert.equal(p.restMore(T0 + MIN, DEFAULTS), null);
   assert.equal(p.phase, 'focus');
-  assert.equal(p.done, 2); // 专注完了两个番茄
 });
 
-test('休息结束时正在摸鱼：马上要弹窗；一次休息最多弹一次', () => {
-  const p = new Pomodoro();
-  p.start(T0, DEFAULTS);
-  const act = (now) => ({ category: now < T0 + 25 * MIN ? 'study' : 'slack' });
-  const events = run(p, T0, T0 + 50 * MIN, act);
-  assert.deepEqual(events, [
-    [25 * 60, 'break'], // 到休息时间：只有这一个事件，不弹窗
-    [30 * 60, 'focus'],
-    [30 * 60, 'nudge'],
-  ]);
+test('等着点的时候在干什么都不影响：摸鱼、暂停分享（category 是 null）都一样停着', () => {
+  for (const category of ['slack', 'study', null]) {
+    const p = new Pomodoro();
+    p.start(T0, DEFAULTS);
+    assert.deepEqual(run(p, T0, T0 + 40 * MIN, (now) => ({ category, lastInputAt: now })), [
+      [25 * 60, 'break'],
+      [30 * 60, 'wait'],
+    ]);
+  }
 });
 
-test('休息的时候摸鱼不弹窗，第一段专注里摸鱼也不归番茄钟管（那是摸鱼提醒的事）', () => {
+test('弹窗一直没人点：一整轮没碰电脑，或者电脑睡了一觉，就自己停掉', () => {
   const p = new Pomodoro();
   p.start(T0, DEFAULTS);
-  assert.deepEqual(run(p, T0, T0 + 29 * MIN, { category: 'slack' }), [[25 * 60, 'break']]);
-});
-
-test('休息结束时不在电脑前，回来接着摸鱼：回来的时候弹窗', () => {
-  const p = new Pomodoro();
-  p.start(T0, DEFAULTS);
-  const act = (now) => ({ category: now < T0 + 33 * MIN ? 'away' : 'slack' });
-  assert.deepEqual(run(p, T0, T0 + 40 * MIN, act), [
+  // 休息到一半走开了（第 28 分钟之后没再碰电脑）
+  const act = (now) => ({ lastInputAt: Math.min(now, T0 + 28 * MIN) });
+  assert.deepEqual(run(p, T0, T0 + 70 * MIN, act), [
     [25 * 60, 'break'],
-    [30 * 60, 'focus'],
-    [33 * 60, 'nudge'],
+    [30 * 60, 'wait'],
+    [(28 + 30) * 60, 'idle'], // 28 分钟 + 一整轮 30 分钟
   ]);
+  assert.equal(p.phase, null);
+
+  // 等着的时候合上了电脑，3 小时后被按键叫醒（所以键鼠是刚动过的）
+  p.start(T0, DEFAULTS);
+  run(p, T0, T0 + 31 * MIN, (now) => ({ lastInputAt: now }));
+  assert.equal(p.phase, 'wait');
+  const wake = T0 + 211 * MIN;
+  assert.deepEqual(p.tick(wake, { lastInputAt: wake }, DEFAULTS), ['idle']);
+  assert.equal(p.phase, null);
 });
 
-test('休息结束后老实用了一会儿电脑就算回去专注了，之后再摸鱼不弹窗', () => {
-  const p = new Pomodoro();
-  p.start(T0, DEFAULTS);
-  const back = T0 + 30 * MIN;
-  // 切出去不到 30 秒不算回去专注了
-  const brief = (now) => ({ category: now < back + (SETTLE_SEC - 10) * 1000 ? 'study' : 'slack' });
-  assert.deepEqual(run(p, T0, T0 + 40 * MIN, brief).at(-1), [30 * 60 + SETTLE_SEC - 10, 'nudge']);
-
-  p.start(T0, DEFAULTS);
-  const settled = (now) => ({ category: now < back + 2 * MIN ? 'study' : 'slack' });
-  assert.deepEqual(run(p, T0, T0 + 50 * MIN, settled), [
-    [25 * 60, 'break'],
-    [30 * 60, 'focus'],
-  ]);
-});
-
-test('弹过窗之后回去学习满 30 秒：窗口可以收起来（settled）；中途又摸鱼要重新数', () => {
-  const p = new Pomodoro();
-  p.start(T0, DEFAULTS);
-  const back = T0 + 30 * MIN;
-  const act = (now) => {
-    const sec = (now - back) / 1000;
-    if (sec < 0) return { category: 'study' };
-    if (sec < 60) return { category: 'slack' }; // 休息结束还在摸鱼
-    if (sec < 80) return { category: 'study' }; // 回去 20 秒
-    if (sec < 100) return { category: 'slack' }; // 又摸了一会儿
-    return { category: 'study' };
-  };
-  const events = run(p, T0, T0 + 40 * MIN, act);
-  assert.deepEqual(events.slice(1), [
-    [30 * 60, 'focus'],
-    [30 * 60, 'nudge'],
-    [30 * 60 + 100 + SETTLE_SEC - 1, 'settled'], // 第 100 秒那一下记的是之前那 1 秒，所以是 100 + 29
-  ]);
-  assert.equal(p.nudge, null);
-});
-
-test('暂停分享时（category 是 null）不弹窗', () => {
-  const p = new Pomodoro();
-  p.start(T0, DEFAULTS);
-  assert.deepEqual(run(p, T0, T0 + 40 * MIN, { category: null }), [
-    [25 * 60, 'break'],
-    [30 * 60, 'focus'],
-  ]);
-});
-
-test('skip：手动跳到下一段，不算完成一个番茄，跳过休息后也不盯着弹窗', () => {
+test('skip：手动跳到下一段，不算完成一个番茄；跳过休息是自己点的，直接开始专注不用再确认', () => {
   const p = new Pomodoro();
   p.start(T0, DEFAULTS);
   assert.equal(p.skip(T0 + 10 * MIN, DEFAULTS), 'break'); // 现在就休息
@@ -147,6 +142,10 @@ test('skip：手动跳到下一段，不算完成一个番茄，跳过休息后�
   assert.equal(p.skip(T0 + 11 * MIN, DEFAULTS), 'focus'); // 跳过休息
   assert.equal(p.leftSec(T0 + 11 * MIN), 25 * 60);
   assert.deepEqual(run(p, T0 + 11 * MIN, T0 + 20 * MIN, { category: 'slack' }), []);
+  // 等着点的时候 skip 也是开始专注
+  run(p, T0 + 11 * MIN, T0 + 42 * MIN, (now) => ({ lastInputAt: now }));
+  assert.equal(p.phase, 'wait');
+  assert.equal(p.skip(T0 + 42 * MIN, DEFAULTS), 'focus');
 });
 
 test('改了设置里的时长：正在进行的这一段不变，从下一段开始用新的', () => {
@@ -156,8 +155,9 @@ test('改了设置里的时长：正在进行的这一段不变，从下一段�
   const events = run(p, T0 + 1000, T0 + 36 * MIN, { category: 'study' }, next);
   assert.deepEqual(events, [
     [25 * 60, 'break'],
-    [35 * 60, 'focus'],
+    [35 * 60, 'wait'],
   ]);
+  assert.equal(p.resume(T0 + 36 * MIN, next), 'focus');
   assert.equal(p.minutes, 50);
 });
 
@@ -176,7 +176,7 @@ test('一整轮（专注 + 休息）没碰电脑：到点自己停掉，不会�
 test('没有键鼠记录（lastInputAt 是 0，比如采集还没启动）不会被当成人不在', () => {
   const p = new Pomodoro();
   p.start(T0, DEFAULTS);
-  assert.deepEqual(run(p, T0, T0 + 31 * MIN, { category: 'study', lastInputAt: 0 }).map((e) => e[1]), ['break', 'focus']);
+  assert.deepEqual(run(p, T0, T0 + 90 * MIN, { category: 'study', lastInputAt: 0 }).map((e) => e[1]), ['break', 'wait']);
 });
 
 test('电脑睡了一觉，醒来时早就过点了：直接停掉', () => {
@@ -199,7 +199,7 @@ test('stop 之后回到没开的样子，重新开始从第一个番茄数', () 
   run(p, T0, T0 + 26 * MIN, { category: 'study' });
   assert.equal(p.done, 1);
   p.stop();
-  assert.deepEqual([p.phase, p.done, p.endsAt, p.nudge], [null, 0, 0, null]);
+  assert.deepEqual([p.phase, p.done, p.endsAt], [null, 0, 0]);
   p.start(T0 + 40 * MIN, DEFAULTS);
   assert.equal(p.done, 0);
   assert.equal(p.leftSec(T0 + 40 * MIN), 25 * 60);

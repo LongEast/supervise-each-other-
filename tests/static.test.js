@@ -125,7 +125,7 @@ test('自动更新：从 GitHub Release 查新版本，安装版自动下载，�
   assert.match(main, /setInterval\(checkJournal, JOURNAL_CHECK_MS\);\s*setupUpdater\(\);/);
 });
 
-test('番茄钟：右键小狗开始，时长和「休息算不算学习」在设置里，到休息只冒气泡，休息结束还在摸鱼才弹窗', () => {
+test('番茄钟：右键小狗开始，时长和「休息算不算学习」在设置里，到休息只冒气泡，休息结束弹窗等着点「重新开始」', () => {
   const main = read('main.js');
   // 默认 25 + 5，休息默认不算学习时间
   assert.match(main, /pomodoroFocusMinutes: POMO_FOCUS_DEFAULT,/);
@@ -137,9 +137,18 @@ test('番茄钟：右键小狗开始，时长和「休息算不算学习」在�
   assert.match(main, /\.\.\.pomodoroItems\(false\),/);
   assert.match(main, /label: `🍅 开始番茄钟[^`]*`, click: startPomodoro/);
   assert.match(main, /label: '结束番茄钟', click: stopPomodoro/);
-  // 弹窗只在 nudge（休息结束了还在摸鱼）时出现；到休息时间（break）走的是小狗气泡
-  assert.match(main, /if \(events\.includes\('nudge'\)\) showRemindWindow\(\{ kind: 'focus',/);
+  // 弹窗只在 wait（休息结束）时出现；到休息时间（break）走的是小狗气泡
+  assert.match(main, /if \(events\.includes\('wait'\)\) showRemindWindow\(\{ kind: 'focus',/);
   assert.equal(main.match(/showRemindWindow\(\{/g).length, 2); // 另一个是连续摸鱼提醒
+  // 休息结束后三个选择：重新开始 / 再休息一会 / 恢复默认模式。弹窗、右键菜单、托盘菜单里都能选
+  assert.match(main, /ipcMain\.on\('pomodoro:resume', resumePomodoro\)/);
+  assert.match(main, /ipcMain\.on\('pomodoro:rest', restMorePomodoro\)/);
+  assert.match(main, /label: `重新开始番茄钟[^`]*`, click: resumePomodoro/);
+  assert.match(main, /label: `再休息一会[^`]*`, click: restMorePomodoro/);
+  assert.match(main, /if \(kind !== 'wait'\) closeRemindWindow\('focus'\);/); // 选完（或者番茄钟自己停了）窗口跟着关
+  // 「休息结束啦」要等着选：回去学习不会把它关掉，摸鱼提醒也不会把它顶掉
+  assert.match(main, /function closeSlackReminder\(\) \{\s*closeRemindWindow\('slack'\);/);
+  assert.match(main, /if \(remindWin && !remindWin\.isDestroyed\(\) && remindKind === 'focus'\) return;\s*showRemindWindow\(\{/);
   assert.match(main, /petWin\.webContents\.send\('pomodoro-event',/);
   // 休息时间怎么计时：勾了整段算学习，没勾的话休息时摸鱼不算摸鱼
   assert.match(main, /tracker\.setRest\(pomodoro\.phase === 'break' \? \(config\.pomodoroBreakCounts \? 'study' : 'free'\) : null\)/);
@@ -165,11 +174,20 @@ test('番茄钟：右键小狗开始，时长和「休息算不算学习」在�
   assert.match(read('renderer/pet.css'), /\.pomo \{[^}]*pointer-events: none;/); // 倒计时不挡鼠标，不然小狗那一角点不到
   assert.match(read('preload.js'), /onPomodoro: on\('pomodoro-event'\)/);
 
-  // 「该专注啦」和「该学习啦」共用一个窗口
+  // 「休息结束啦」和「该学习啦」共用一个窗口
   const remind = read('renderer/remind.js');
+  const remindHtml = read('renderer/remind.html');
   assert.match(remind, /const focus = kind === 'focus';/);
+  assert.match(remind, /buddy\.resumePomodoro\(\)/);
+  assert.match(remind, /buddy\.restMorePomodoro\(\)/);
   assert.match(remind, /buddy\.stopPomodoro\(\)/);
-  assert.match(read('renderer/remind.html'), /id="whatFocus"[^>]* hidden>/);
+  assert.match(remindHtml, /id="whatFocus"[^>]* hidden>/);
+  // 「再休息一会」藏在小箭头后面，默认收着
+  for (const id of ['resume', 'more', 'restMore']) assert.match(remindHtml, new RegExp(`<button id="${id}"[^>]* hidden>`));
+  assert.match(remindHtml, /id="stopPomodoro">恢复默认模式</);
+  // 小狗：等着点的时候倒计时那里显示「等你开始」，搭子的卡片上也有一行
+  assert.match(pet, /if \(p\.phase === 'wait'\)/);
+  assert.match(pet, /pomo\?\.phase === 'wait'/);
 });
 
 test('发版：推 v 开头的 tag 后由 GitHub Actions 打包并发 Release，自动更新要的四个文件都传上去', () => {
