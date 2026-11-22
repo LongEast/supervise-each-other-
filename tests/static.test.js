@@ -163,3 +163,24 @@ test('番茄钟：右键小狗开始，时长和「休息算不算学习」在�
   assert.match(remind, /buddy\.stopPomodoro\(\)/);
   assert.match(read('renderer/remind.html'), /id="whatFocus"[^>]* hidden>/);
 });
+
+test('发版：推 v 开头的 tag 后由 GitHub Actions 打包并发 Release，自动更新要的四个文件都传上去', () => {
+  const root = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  const wf = root('.github/workflows/release.yml');
+  assert.match(wf, /tags: \['v\*'\]/);
+  assert.match(wf, /"v\$version" != "\$GITHUB_REF_NAME"/); // tag 和 package.json 的版本对不上就不发
+  assert.match(wf, /needs: test/); // 测试没过不打包
+  assert.match(wf, /runs-on: windows-latest/);
+  assert.match(wf, /npm run dist/);
+  for (const f of ['Buddy-Pet-Setup-$version.exe"', 'Buddy-Pet-Setup-$version.exe.blockmap"', 'Buddy-Pet-$version-portable.exe"', 'client/dist/latest.yml']) {
+    assert.ok(wf.includes(f), `Release 里要有 ${f}`);
+  }
+  // Release 说明取自 CHANGELOG.md 里这一版的那一节；现在这一版要写了才算数
+  const { changelogSection, releaseNotes } = require('../.github/release-notes');
+  assert.equal(changelogSection('# 记录\n说明\n## 1.1.0\n- 新的\n\n## 1.0.0\n- 旧的\n', '1.1.0'), '- 新的');
+  assert.equal(changelogSection('## v1.0.0\r\n- a\r\n', '1.0.0'), '- a');
+  assert.equal(changelogSection('## 1.0.0\n- a', '1.0.1'), '');
+  assert.match(releaseNotes('9.9.9', ''), /Buddy-Pet-Setup-9\.9\.9\.exe[\s\S]*提交记录/); // 忘了写也能发，只是没有具体内容
+  const version = JSON.parse(read('package.json')).version;
+  assert.ok(changelogSection(root('CHANGELOG.md'), version), `CHANGELOG.md 里还没有 ${version} 这一节`);
+});

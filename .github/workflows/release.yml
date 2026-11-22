@@ -1,0 +1,83 @@
+# 发新版本：推一个 v 开头的 tag（比如 v0.1.2），这里就在 Windows 上打包并发 GitHub Release，
+# 已经装好的安装版会通过自动更新收到。tag 要和 client/package.json 里的 version 对得上。
+# 手动运行（Actions 页面点 Run workflow）只打包不发布，安装包在那次运行的 Artifacts 里，可以先下载试用。
+name: 打包发布
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write # 创建 Release 要用
+
+jobs:
+  test:
+    name: 测试
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: 核对版本号
+        if: github.ref_type == 'tag'
+        run: |
+          version=$(node -p "require('./client/package.json').version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag 是 $GITHUB_REF_NAME，但 client/package.json 里的 version 是 $version。更新靠版本号比较，两个要一致"
+            exit 1
+          fi
+      - run: npm ci --no-audit --no-fund
+        working-directory: server
+      - run: npm install --no-audit --no-fund
+        working-directory: client
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1' # 测试用不到 Electron 本体
+      - run: npm test
+        working-directory: client
+
+  build:
+    name: 打包
+    needs: test
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # 不让 git 把换行换成 CRLF：打进安装包的文件和仓库里的一模一样
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+        working-directory: client
+      - run: npm run dist
+        working-directory: client
+
+      - name: 只打包：把安装包放进 Artifacts
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v7
+        with:
+          name: buddy-pet
+          path: |
+            client/dist/*.exe
+            client/dist/*.blockmap
+            client/dist/latest.yml
+          retention-days: 7
+
+      - name: 发 Release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(node -p "require('./client/package.json').version")
+          node .github/release-notes.js "$version" > release-notes.md
+          # 四个文件缺一不可，名字也不能改：少了 latest.yml，已经装好的客户端查不到这一版；
+          # .blockmap 让更新只下载变化的部分。gh 会等文件都传完才把 Release 公开
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "Buddy Pet $version" --notes-file release-notes.md \
+            "client/dist/Buddy-Pet-Setup-$version.exe" \
+            "client/dist/Buddy-Pet-Setup-$version.exe.blockmap" \
+            "client/dist/Buddy-Pet-$version-portable.exe" \
+            client/dist/latest.yml

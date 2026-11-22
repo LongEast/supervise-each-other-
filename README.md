@@ -59,11 +59,13 @@ npm run dist       # 打包成安装包和便携版 exe，输出在 client/dist/
 
 **自动更新**：安装版启动后（之后每 6 小时）会到 GitHub Release 查有没有新版本，有就在后台下载，下好了弹窗问要不要现在重启更新；选「稍后」的话下次退出时自动装上。设置和计划记录都会保留。便携版没法替换自己，只会提示有新版本并打开下载页。托盘菜单里的「检查更新」可以手动查。
 
-发新版本的步骤：
+发新版本的步骤（不用在自己电脑上打包，GitHub Actions 会做）：
 
-1. 改 `client/package.json` 里的 `version`（更新靠版本号比较，必须比上一版大）。
-2. `npm run dist`，`dist/` 里会多出 `latest.yml` 和 `Buddy-Pet-Setup-x.y.z.exe.blockmap`。
-3. 在 GitHub 上建一个 tag 为 `vx.y.z` 的 Release，把安装版、便携版、`latest.yml`、`.blockmap` 四个文件原名上传。少了 `latest.yml`，已经装好的客户端就查不到这一版；`.blockmap` 让更新只下载变化的部分。
+1. 改 `client/package.json` 里的 `version`（更新靠版本号比较，必须比上一版大），在 `CHANGELOG.md` 最上面加一节 `## x.y.z` 写这一版改了什么，提交并推送。
+2. 推一个同名的 tag：`git tag vx.y.z && git push origin vx.y.z`。
+3. `.github/workflows/release.yml` 会先跑测试，再在 Windows 上打包，然后建好 Release，把安装版、便携版、`latest.yml`、`.blockmap` 四个文件传上去，大约十分钟。之后已经装好的安装版就会收到更新。tag 和 `version` 对不上，或者测试没过，就不会发。
+
+想先试用再发：在 GitHub 的 Actions 页面手动运行「打包发布」，它只打包不发 Release，安装包在那次运行的 Artifacts 里。自己手动发也行：`npm run dist` 之后把上面四个文件原名传到 tag 为 `vx.y.z` 的 Release。少了 `latest.yml`，已经装好的客户端就查不到这一版；`.blockmap` 让更新只下载变化的部分。
 
 第一次打开会弹出设置页，填写以下几项：
 
