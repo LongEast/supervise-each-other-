@@ -104,10 +104,32 @@ test('换形象：右键菜单和托盘菜单里能选，选择会记住；每�
   assert.equal(html.match(/<svg /g).length, 1); // 两套画在同一个 #pet 里：拖动、滚轮、右键、点击都只接了它
 });
 
+test('换了形象以后称呼和托盘图标跟着换：菜单、气泡、通知里不再写死「小狗」', () => {
+  const main = read('main.js');
+  // 称呼取自 PET_SKINS 里的名字（去掉开头的表情），推给小狗窗口和设置页
+  const names = [...main.slice(main.indexOf('const PET_SKINS = ['), main.indexOf('const validSkin')).matchAll(/\['(\w+)', '([^']+)'\]/g)].map((m) => m[2].replace(/^\S+ /, ''));
+  assert.deepEqual(names, ['小狗', '小猫']);
+  assert.match(main, /const petName = \(\) => PET_SKINS\.find\(\(\[id\]\) => id === config\.petSkin\)\[1\]\.replace\(\/\^\\S\+ \/, ''\);/);
+  assert.match(main, /petName: petName\(\),/);
+  // 界面上的字都不能再写死「小狗」：去掉注释以后，还带「小狗」的行只剩形象名字本身和没给名字时的默认值
+  const lines = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').map((l) => l.replace(/\/\/.*$/, '').trim()).filter((l) => l.includes('小狗'));
+  assert.deepEqual(lines(main), ["['dog', '🐶 小狗'],"]);
+  assert.deepEqual(lines(read('renderer/pet.js')), ["const petName = () => state?.petName || '小狗';"]);
+  assert.match(read('renderer/pet.js'), /const petName = \(\) => state\?\.petName \|\| '小狗';/);
+  // 设置页的说明文字：写「小狗」的地方都包在 .pet-name 里，收到状态后改口
+  const settings = read('renderer/settings.html');
+  assert.equal(settings.match(/小狗/g).length, settings.match(/<span class="pet-name">小狗<\/span>/g).length);
+  assert.match(read('renderer/settings.js'), /querySelectorAll\('\.pet-name'\)\) e\.textContent = s\.petName \|\| '小狗';/);
+  // 托盘图标：每个形象一张，换形象时托盘跟着换
+  assert.match(main, /tray\.setImage\(trayImage\(\)\);/);
+  assert.ok(fs.existsSync(path.join(__dirname, '..', 'client', 'assets', 'tray.png')));
+  for (const id of ['cat']) assert.ok(fs.existsSync(path.join(__dirname, '..', 'client', 'assets', `tray-${id}.png`)), `缺少 ${id} 的托盘图标`);
+});
+
 test('右键小狗的菜单里能隐藏和退出：不用去找托盘图标', () => {
   const main = read('main.js');
   const menu = main.slice(main.indexOf('function showPetMenu()'), main.indexOf('function openSettings()'));
-  assert.match(menu, /label: '隐藏小狗[^']*', click: hidePet/);
+  assert.match(menu, /label: `隐藏\$\{petName\(\)\}[^`]*`, click: hidePet/);
   assert.match(menu, /label: '退出 Buddy Pet', click: \(\) => app\.quit\(\)/);
   assert.match(menu, /function hidePet\(\) \{[^}]*petWin\.hide\(\);\s*updateTray\(\);/); // 托盘菜单要跟着换成「显示小狗」
 });

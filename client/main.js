@@ -76,6 +76,8 @@ const PET_SKINS = [
   ['cat', '🐱 小猫'],
 ];
 const validSkin = (s) => (PET_SKINS.some(([id]) => id === s) ? s : 'dog');
+// 菜单、气泡、通知里怎么称呼它：「小狗」或「小猫」，跟着现在的形象走（就是上面的名字去掉开头的表情）
+const petName = () => PET_SKINS.find(([id]) => id === config.petSkin)[1].replace(/^\S+ /, '');
 
 function loadConfig() {
   try {
@@ -153,6 +155,7 @@ function viewState() {
     petScale: config.petScale,
     petView: config.petView,
     petSkin: config.petSkin,
+    petName: petName(),
     pomodoro: pomodoro.phase ? { phase: pomodoro.phase, endsAt: pomodoro.endsAt } : null, // 小狗头上的倒计时
   };
 }
@@ -363,7 +366,7 @@ function syncRest() {
 const POMO_NOTICE = {
   break: (m, x) => [x.again ? '🍅 再休息一会' : '🍅 专注结束，休息一下吧', `休息 ${m} 分钟，结束时会再叫你`],
   wait: () => ['🍅 休息结束啦', '在弹出的窗口里点「重新开始番茄钟」，新一轮才开始计时'],
-  idle: () => ['🍅 番茄钟已结束', '好一阵没碰电脑，先停了。右键小狗可以重新开始'],
+  idle: () => ['🍅 番茄钟已结束', `好一阵没碰电脑，先停了。右键${petName()}可以重新开始`],
 };
 
 /** 番茄钟有变化（开始 / 换到下一段 / 结束）：同步计时方式，让小狗冒气泡，告诉搭子 */
@@ -573,7 +576,7 @@ function showPetMenu() {
     { label: '设置…', click: openSettings },
     { type: 'separator' },
     // 托盘图标在 Win11 上默认收在「^」里不好找，任务栏图标的「关闭窗口」又只关设置之类的窗口，所以这里也要能关
-    { label: '隐藏小狗（点托盘图标再叫出来）', click: hidePet },
+    { label: `隐藏${petName()}（点托盘图标再叫出来）`, click: hidePet },
     { label: '退出 Buddy Pet', click: () => app.quit() },
   ]).popup({ window: petWin });
 }
@@ -607,6 +610,11 @@ function updateTray() {
   const planLabel = mine ? `（${mine.done}/${mine.total}${mine.reviewed ? '，已复盘' : ''}）` : '（还没写）';
   const next = progress(journal.mine(addDays(localDate(), 1)));
   const tomorrowLabel = next ? `（已写 ${next.total} 条）` : '';
+  const pet = petName();
+  if (trayIconSkin !== config.petSkin) {
+    tray.setImage(trayImage()); // 托盘图标也跟着形象换
+    trayIconSkin = config.petSkin;
+  }
   tray.setContextMenu(
     Menu.buildFromTemplate([
       { label: `状态：${label}${relay.state === 'error' && relay.lastError ? '（' + relay.lastError + '）' : ''}`, enabled: false },
@@ -616,7 +624,7 @@ function updateTray() {
         click: togglePause,
       },
       {
-        label: petWin?.isVisible() ? '隐藏小狗' : '显示小狗',
+        label: `${petWin?.isVisible() ? '隐藏' : '显示'}${pet}`,
         click: () => {
           if (!petWin) createPetWindow();
           else if (petWin.isVisible()) petWin.hide();
@@ -625,7 +633,7 @@ function updateTray() {
         },
       },
       {
-        label: '小狗大小（也可以在小狗身上滚滚轮）',
+        label: `${pet}大小（也可以在${pet}身上滚滚轮）`,
         submenu: [['小', 0.75], ['标准', 1], ['大', 1.5], ['特大', 2]].map(([name, s]) => ({
           label: `${name} ${Math.round(s * 100)}%`,
           type: 'radio',
@@ -633,8 +641,8 @@ function updateTray() {
           click: () => setPetScale(s),
         })),
       },
-      { label: '小狗显示谁（也可以右键小狗）', submenu: petViewItems() },
-      { label: '换个形象（也可以右键小狗）', submenu: petSkinItems() },
+      { label: `${pet}显示谁（也可以右键${pet}）`, submenu: petViewItems() },
+      { label: `换个形象（也可以右键${pet}）`, submenu: petSkinItems() },
       { type: 'separator' },
       ...pomodoroItems(false),
       { type: 'separator' },
@@ -653,8 +661,16 @@ function updateTray() {
   );
 }
 
+// 托盘图标：小狗用 tray.png，其他形象用 tray-名字.png；文件找不到就退回小狗的
+function trayImage() {
+  const file = (name) => nativeImage.createFromPath(path.join(__dirname, 'assets', name));
+  const img = config.petSkin === 'dog' ? file('tray.png') : file(`tray-${config.petSkin}.png`);
+  return img.isEmpty() ? file('tray.png') : img;
+}
+let trayIconSkin = null; // 托盘上现在挂的是哪个形象的图标
 function createTray() {
-  const img = nativeImage.createFromPath(path.join(__dirname, 'assets', 'tray.png'));
+  const img = trayImage();
+  trayIconSkin = config.petSkin;
   tray = new Tray(img.isEmpty() ? nativeImage.createEmpty() : img);
   tray.on('click', () => {
     if (petWin) petWin.isVisible() ? petWin.hide() : petWin.showInactive();
@@ -681,7 +697,7 @@ async function promptInstall(version) {
   updatePromptOpen = true;
   const { response } = await updateBox(
     `新版本 ${version} 已经下载好了`,
-    `现在重启小狗就能用上（当前是 ${app.getVersion()}），设置和计划记录都会保留。\n选「稍后」的话，下次退出小狗时会自动装上。`,
+    `现在重启${petName()}就能用上（当前是 ${app.getVersion()}），设置和计划记录都会保留。\n选「稍后」的话，下次退出${petName()}时会自动装上。`,
     ['现在重启更新', '稍后']
   );
   updatePromptOpen = false;

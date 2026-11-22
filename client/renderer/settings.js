@@ -102,6 +102,8 @@ $('form').addEventListener('submit', async (e) => {
 });
 
 buddy.onState((s) => {
+  // 说明文字里的「小狗」跟着现在的形象改口
+  for (const e of document.querySelectorAll('.pet-name')) e.textContent = s.petName || '小狗';
   const c = s.connection || {};
   const conn = $('connPill');
   conn.textContent = '服务器：' + ({ online: '已连接', connecting: '连接中…' }[c.state] || (c.error ? '未连接（' + c.error + '）' : '未连接'));

@@ -90,6 +90,7 @@ for (const id of ['pet', 'nametag']) {
 }
 
 // ---------- 工具 ----------
+const petName = () => state?.petName || '小狗'; // 气泡里怎么称呼它，跟着形象走（小狗 / 小猫）
 function fmtDur(sec) {
   sec = Math.max(0, Math.round(sec || 0));
   const h = Math.floor(sec / 3600);
@@ -470,7 +471,7 @@ buddy.onPoke(({ from, text }) => {
 buddy.onJournalEvent(({ from, kind }) => {
   animate('jump');
   const what = kind === 'review' ? '今日复盘 🌙' : '今日计划 📝';
-  const how = state?.petView === 'me' ? '右键换回搭子后，点小狗可以查看' : '点小狗可以查看 TA 的计划';
+  const how = state?.petView === 'me' ? `右键换回搭子后，点${petName()}可以查看` : `点${petName()}可以查看 TA 的计划`;
   showBubble(`<b>${esc(from)}</b> 写好了${what}<span class="sub">${how}</span>`, { ms: 12000 });
 });
 buddy.onSelfAlert(({ minutes, friend }) => {
@@ -482,21 +483,22 @@ buddy.onSelfAlert(({ minutes, friend }) => {
 buddy.onPomodoro(({ kind, minutes, done, skipped, again }) => {
   const n = Math.round(Number(minutes) || 0);
   const say = (html, sub, ms = 12000) => showBubble(`${html}<span class="sub">${sub}</span>`, { self: true, ms });
-  if (kind === 'start') say(`番茄钟开始 🍅 专注 <b>${n} 分钟</b>`, '到休息时间小狗会叫你 · 右键小狗可以结束');
+  const pet = petName();
+  if (kind === 'start') say(`番茄钟开始 🍅 专注 <b>${n} 分钟</b>`, `到休息时间${pet}会叫你 · 右键${pet}可以结束`);
   else if (kind === 'break') {
     animate('jump');
     const head = again ? '那就再休息' : skipped ? '那就先休息' : `第 ${Math.max(1, Math.round(Number(done) || 0))} 个番茄完成 🍅 休息`;
-    say(`${head} <b>${n} 分钟</b>吧 ☕`, '休息结束小狗会叫你', 15000);
+    say(`${head} <b>${n} 分钟</b>吧 ☕`, `休息结束${pet}会叫你`, 15000);
   } else if (kind === 'focus') {
     // 都是自己点的（重新开始 / 跳过休息）
     animate('jump');
     say(`开始专注 <b>${n} 分钟</b> 🍅`, '加油～');
   } else if (kind === 'wait') {
     animate('jump');
-    say('休息结束啦 ☕', '点「重新开始番茄钟」才会开始新一轮 · 右键小狗也能选', 15000);
+    say('休息结束啦 ☕', `点「重新开始番茄钟」才会开始新一轮 · 右键${pet}也能选`, 15000);
   } else if (kind === 'idle') {
     // 人不在的时候停的，气泡留着等回来看
-    say('好一阵没碰电脑，番茄钟先停了 🍅', '右键小狗可以重新开始 · 点击关闭', 8 * 3600_000);
+    say('好一阵没碰电脑，番茄钟先停了 🍅', `右键${pet}可以重新开始 · 点击关闭`, 8 * 3600_000);
   } else if (kind === 'stop') say('番茄钟结束了 🍅', '辛苦啦', 5000);
 });
 
