@@ -75,6 +75,14 @@ test('右键小狗能换成显示自己的状态：小狗和名牌都接了右�
   assert.match(main, /submenu: petViewItems\(\)/); // 托盘菜单里也有入口，小狗隐藏时也能切
 });
 
+test('右键小狗的菜单里能隐藏和退出：不用去找托盘图标', () => {
+  const main = read('main.js');
+  const menu = main.slice(main.indexOf('function showPetMenu()'), main.indexOf('function openSettings()'));
+  assert.match(menu, /label: '隐藏小狗[^']*', click: hidePet/);
+  assert.match(menu, /label: '退出 Buddy Pet', click: \(\) => app\.quit\(\)/);
+  assert.match(menu, /function hidePet\(\) \{[^}]*petWin\.hide\(\);\s*updateTray\(\);/); // 托盘菜单要跟着换成「显示小狗」
+});
+
 test('连续摸鱼提醒：开关和时间在设置里，到点弹置顶窗口，不抢焦点', () => {
   const main = read('main.js');
   assert.match(main, /slackRemind: true,/); // 默认开，和以前一直开着的气泡提醒接上

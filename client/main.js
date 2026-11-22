@@ -527,7 +527,15 @@ function showPetMenu() {
     { label: tracker.paused ? '▶ 恢复分享' : '⏸ 暂停分享（处理私事）', click: togglePause },
     { label: '今日时长明细', click: () => openStats() },
     { label: '设置…', click: openSettings },
+    { type: 'separator' },
+    // 托盘图标在 Win11 上默认收在「^」里不好找，任务栏图标的「关闭窗口」又只关设置之类的窗口，所以这里也要能关
+    { label: '隐藏小狗（点托盘图标再叫出来）', click: hidePet },
+    { label: '退出 Buddy Pet', click: () => app.quit() },
   ]).popup({ window: petWin });
+}
+function hidePet() {
+  if (petWin && !petWin.isDestroyed()) petWin.hide();
+  updateTray(); // 托盘菜单里的「隐藏小狗」要换成「显示小狗」
 }
 
 function openSettings() {
