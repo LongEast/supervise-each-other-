@@ -581,7 +581,12 @@ function setPetSkin(skin) {
 function petSkinItems() {
   return PET_SKINS.map(([id, label]) => ({ label, type: 'radio', checked: config.petSkin === id, click: () => setPetSkin(id) }));
 }
-// 右键小狗弹出来的菜单
+// 菜单上「今日计划」后面括号里的进度
+function planLabel() {
+  const mine = progress(journal.mine());
+  return mine ? `${mine.done}/${mine.total}${mine.reviewed ? '，已复盘' : ''}` : '还没写';
+}
+// 右键小狗弹出来的菜单：常用的都直接放在这里（计划、统计、设置各一项，点了直接到面板的那一页），不用去找托盘图标
 function showPetMenu() {
   if (!petWin || petWin.isDestroyed()) return;
   // 菜单里单个 & 会被当成快捷键标记
@@ -592,9 +597,12 @@ function showPetMenu() {
     { type: 'separator' },
     ...pomodoroItems(true),
     { type: 'separator' },
-    { label: tracker.paused ? '▶ 恢复分享' : '⏸ 暂停分享（处理私事）', click: togglePause },
-    { label: '打开面板（统计、计划、设置）', click: () => openPanel() },
+    { label: `今日计划（${planLabel()}）`, click: () => openPanel('plan') },
+    { label: '统计', click: () => openPanel('stats') },
+    { label: '设置', click: openSettings },
+    { label: '打开面板', click: () => openPanel() },
     { type: 'separator' },
+    { label: tracker.paused ? '▶ 恢复分享' : '⏸ 暂停分享（处理私事）', click: togglePause },
     // 托盘图标在 Win11 上默认收在「^」里不好找，任务栏图标的「关闭窗口」又只关设置之类的窗口，所以这里也要能关
     { label: `隐藏${petName()}（点托盘图标再叫出来）`, click: hidePet },
     { label: '退出 Buddy Pet', click: () => app.quit() },
@@ -613,19 +621,17 @@ function updateTray() {
   if (!tray) return;
   const label = { online: '已连接', connecting: '连接中…', error: '未连接', idle: '未连接' }[relay.state] || '';
   tray.setToolTip(`Buddy Pet · ${label}${tracker.paused ? ' · 已暂停分享' : ''}`);
-  const mine = progress(journal.mine());
-  const planLabel = mine ? `${mine.done}/${mine.total}${mine.reviewed ? '，已复盘' : ''}` : '还没写';
   const pet = petName();
   if (trayIconSkin !== config.petSkin) {
     tray.setImage(trayImage()); // 托盘图标也跟着形象换
     trayIconSkin = config.petSkin;
   }
-  // 菜单只留随手要点的；计划、统计，还有大小、显示谁、换形象、查新版本这些都在面板里
+  // 常用的在右键小狗的菜单里；这里留着小狗藏起来时也得能点的，再加上不常用的（查新版本）
   tray.setContextMenu(
     Menu.buildFromTemplate([
       { label: `状态：${label}${relay.state === 'error' && relay.lastError ? '（' + relay.lastError + '）' : ''}`, enabled: false },
       { type: 'separator' },
-      { label: `打开面板（今日计划 ${planLabel}）`, click: () => openPanel() },
+      { label: `打开面板（今日计划 ${planLabel()}）`, click: () => openPanel() },
       { type: 'separator' },
       ...pomodoroItems(false),
       {
@@ -642,8 +648,9 @@ function updateTray() {
         },
       },
       { type: 'separator' },
-      // 新版本下载好了才出现；平时要手动查新版本，去面板的最后一页
-      ...(updateReady ? [{ label: `重启并更新到 ${updateReady}`, click: () => promptInstall(updateReady) }] : []),
+      updateReady
+        ? { label: `重启并更新到 ${updateReady}`, click: () => promptInstall(updateReady) }
+        : { label: `检查更新（当前 ${app.getVersion()}）`, click: () => checkForUpdates(true) },
       { label: '退出', click: () => app.quit() },
     ])
   );

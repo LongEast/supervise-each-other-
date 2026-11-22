@@ -246,7 +246,7 @@ test('番茄钟：右键小狗开始，时长和「休息算不算学习」在�
   assert.match(pet, /pomo\?\.phase === 'wait'/);
 });
 
-test('面板：一个窗口四页（今天 / 统计 / 计划 / 设置），托盘菜单只留随手要点的', () => {
+test('面板：一个窗口四页（今天 / 统计 / 计划 / 设置）；常用的入口在右键小狗的菜单里，托盘菜单留不常用的', () => {
   const main = read('main.js');
   const html = read('renderer/panel.html');
   const js = read('renderer/panel.js');
@@ -270,20 +270,23 @@ test('面板：一个窗口四页（今天 / 统计 / 计划 / 设置），托�
   assert.match(js, /^\(\(\) => \{$/m);
   assert.match(html, /<button type="submit" form="form"/); // 保存按钮在页面右上角，不在表单里面
 
-  // 托盘菜单：状态、打开面板、番茄钟、暂停分享、隐藏 / 显示、退出；新版本下载好了才多一项「重启并更新」
+  // 托盘菜单：状态、打开面板、番茄钟、暂停分享、隐藏 / 显示（小狗藏起来时只能从这里叫出来）、检查更新、退出
   const tray = main.slice(main.indexOf('function updateTray()'), main.indexOf('function trayImage()'));
-  assert.match(tray, /label: `打开面板（今日计划 \$\{planLabel\}）`, click: \(\) => openPanel\(\)/);
-  assert.match(tray, /\.\.\.\(updateReady \? \[\{ label: `重启并更新到 \$\{updateReady\}`/);
-  assert.doesNotMatch(tray, /submenu:|openJournal|检查更新|设置…/);
-  assert.equal(tray.match(/label:/g).length, 6); // 番茄钟那几项是 pomodoroItems() 给的，不算在里面
+  assert.match(tray, /label: `打开面板（今日计划 \$\{planLabel\(\)\}）`, click: \(\) => openPanel\(\)/);
+  assert.match(tray, /updateReady\s*\? \{ label: `重启并更新到 \$\{updateReady\}`[^\n]*\n\s*: \{ label: `检查更新[^`]*`, click: \(\) => checkForUpdates\(true\) \},/);
+  assert.doesNotMatch(tray, /submenu:|openJournal|设置…/);
+  assert.equal(tray.match(/label:/g).length, 7); // 番茄钟那几项是 pomodoroItems() 给的，不算在里面
   // 搬走的几项在面板里都有地方点
   for (const [ch, fn] of [['pet:set-scale', 'setPetScale'], ['update:check', 'checkForUpdates'], ['pomodoro:start', 'startPomodoro'], ['pomodoro:skip', 'skipPomodoro']]) {
     assert.match(main, new RegExp(`ipcMain\\.on\\('${ch}',[^\\n]*${fn}`));
   }
   assert.match(js, /buddy\.checkUpdate\(\)/);
-  // 右键小狗的菜单也是一项「打开面板」
+  // 右键小狗的菜单：计划、统计、设置各一项，点了直接到面板的那一页，不用去找托盘图标
   const menu = main.slice(main.indexOf('function showPetMenu()'), main.indexOf('function hidePet()'));
-  assert.match(menu, /label: '打开面板[^']*', click: \(\) => openPanel\(\)/);
+  assert.match(menu, /label: `今日计划（\$\{planLabel\(\)\}）`, click: \(\) => openPanel\('plan'\)/);
+  assert.match(menu, /label: '统计', click: \(\) => openPanel\('stats'\)/);
+  assert.match(menu, /label: '设置', click: openSettings/);
+  assert.match(menu, /label: '打开面板', click: \(\) => openPanel\(\)/);
 });
 
 test('统计：每天的时长、按小时的分布、番茄数、搭子的时长都记下来，面板按天 / 按周看', () => {
