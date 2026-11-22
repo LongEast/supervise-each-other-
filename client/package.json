@@ -1,7 +1,7 @@
 {
   "name": "buddy-pet",
   "productName": "Buddy Pet",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "description": "桌面小狗：和搭子互相监督学习",
   "main": "main.js",
