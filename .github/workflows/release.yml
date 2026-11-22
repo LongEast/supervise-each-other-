@@ -56,6 +56,12 @@ jobs:
       - run: npm run dist
         working-directory: client
 
+      # 浏览器插件：装安装版的人手里没有源码，给他们一个 ZIP。文件直接放在 ZIP 的最外层，
+      # 这样 Windows「全部解压缩」出来的文件夹里就是 manifest.json，可以直接选它加载
+      - name: 打包浏览器插件
+        shell: pwsh
+        run: Compress-Archive -Path extension/* -DestinationPath client/dist/Buddy-Pet-Extension.zip
+
       - name: 只打包：把安装包放进 Artifacts
         if: github.ref_type != 'tag'
         uses: actions/upload-artifact@v7
@@ -64,6 +70,7 @@ jobs:
           path: |
             client/dist/*.exe
             client/dist/*.blockmap
+            client/dist/*.zip
             client/dist/latest.yml
           retention-days: 7
 
@@ -74,10 +81,12 @@ jobs:
         run: |
           version=$(node -p "require('./client/package.json').version")
           node .github/release-notes.js "$version" > release-notes.md
-          # 四个文件缺一不可，名字也不能改：少了 latest.yml，已经装好的客户端查不到这一版；
-          # .blockmap 让更新只下载变化的部分。gh 会等文件都传完才把 Release 公开
+          # 前四个文件缺一不可，名字也不能改：少了 latest.yml，已经装好的客户端查不到这一版；
+          # .blockmap 让更新只下载变化的部分。gh 会等文件都传完才把 Release 公开。
+          # 插件的 ZIP 名字里不带版本号，README 里的下载链接（releases/latest/download/…）才能一直有效
           gh release create "$GITHUB_REF_NAME" --verify-tag --title "Buddy Pet $version" --notes-file release-notes.md \
             "client/dist/Buddy-Pet-Setup-$version.exe" \
             "client/dist/Buddy-Pet-Setup-$version.exe.blockmap" \
             "client/dist/Buddy-Pet-$version-portable.exe" \
-            client/dist/latest.yml
+            client/dist/latest.yml \
+            client/dist/Buddy-Pet-Extension.zip

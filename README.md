@@ -63,7 +63,7 @@ npm run dist       # 打包成安装包和便携版 exe，输出在 client/dist/
 
 1. 改 `client/package.json` 里的 `version`（更新靠版本号比较，必须比上一版大），在 `CHANGELOG.md` 最上面加一节 `## x.y.z` 写这一版改了什么，提交并推送。
 2. 推一个同名的 tag：`git tag vx.y.z && git push origin vx.y.z`。
-3. `.github/workflows/release.yml` 会先跑测试，再在 Windows 上打包，然后建好 Release，把安装版、便携版、`latest.yml`、`.blockmap` 四个文件传上去，大约十分钟。之后已经装好的安装版就会收到更新。tag 和 `version` 对不上，或者测试没过，就不会发。
+3. `.github/workflows/release.yml` 会先跑测试，再在 Windows 上打包，然后建好 Release，把安装版、便携版、`latest.yml`、`.blockmap` 四个文件和浏览器插件的 ZIP 传上去，大约十分钟。之后已经装好的安装版就会收到更新。tag 和 `version` 对不上，或者测试没过，就不会发。
 
 想先试用再发：在 GitHub 的 Actions 页面手动运行「打包发布」，它只打包不发 Release，安装包在那次运行的 Artifacts 里。自己手动发也行：`npm run dist` 之后把上面四个文件原名传到 tag 为 `vx.y.z` 的 Release。少了 `latest.yml`，已经装好的客户端就查不到这一版；`.blockmap` 让更新只下载变化的部分。
 
@@ -81,10 +81,19 @@ npm run dist       # 打包成安装包和便携版 exe，输出在 client/dist/
 
 不装插件也能用：客户端会根据窗口标题判断，比如标题里有「哔哩哔哩」就算摸鱼。装上插件后能拿到准确的域名。
 
-1. Chrome 打开 `chrome://extensions`（Edge 打开 `edge://extensions`）
-2. 打开右上角的「开发者模式」
-3. 点「加载已解压的扩展程序」，选择 `extension/` 文件夹
-4. 点插件图标，显示「✓ 已连接到桌面小狗」就成功了
+插件没有上架应用商店，要用「开发者模式」从文件夹加载：
+
+1. **下载**：点 [Buddy-Pet-Extension.zip](https://github.com/LongEast/supervise-each-other-/releases/latest/download/Buddy-Pet-Extension.zip)（也在 [Release 页面](https://github.com/LongEast/supervise-each-other-/releases/latest)的文件列表里）。
+2. **解压**：右键这个 ZIP →「全部解压缩」，得到一个 `Buddy-Pet-Extension` 文件夹，里面直接能看到 `manifest.json`。把文件夹放到一个不会删的地方（比如「文档」）：Chrome 是直接从这个文件夹读插件的，**删掉或挪走，插件就失效了**。Chrome 不能直接装 ZIP，必须先解压。
+3. Chrome 打开 `chrome://extensions`（Edge 打开 `edge://extensions`），打开右上角的「开发者模式」（Edge 的开关在左下角）。
+4. 点左上角的「加载未打包的扩展程序」（有的版本写的是「加载已解压的扩展程序」，Edge 上是「加载解压缩的扩展」），选刚才解压出来的那个文件夹（要选里面有 `manifest.json` 的那一层）。
+5. 点浏览器工具栏上的拼图图标 → Buddy Pet 网站助手，显示「✓ 已连接到桌面小狗」就成功了。小狗的设置页最上面也会显示「浏览器插件：已连接」。
+
+Chrome 和 Edge 都用的话，两边各装一次，用同一个文件夹就行。有时浏览器启动会提示「请停用以开发者模式运行的扩展程序」，点关闭或保留即可，不要点停用。
+
+**更新插件**：下载新的 ZIP，解压后覆盖原来的文件夹，再到扩展页面点这个插件卡片上的刷新按钮。插件很少改动，小狗更新后一般不用动它。
+
+手里有源码的话不用下载 ZIP，第 4 步直接选仓库里的 `extension/` 文件夹。
 
 插件只把**域名**发到本机的 `127.0.0.1:17321`，不会发到外网。安装时 Chrome 会提示“读取浏览记录”，这是因为读取标签页网址需要 `tabs` 权限。
 

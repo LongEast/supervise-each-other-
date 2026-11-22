@@ -175,6 +175,11 @@ test('发版：推 v 开头的 tag 后由 GitHub Actions 打包并发 Release，
   for (const f of ['Buddy-Pet-Setup-$version.exe"', 'Buddy-Pet-Setup-$version.exe.blockmap"', 'Buddy-Pet-$version-portable.exe"', 'client/dist/latest.yml']) {
     assert.ok(wf.includes(f), `Release 里要有 ${f}`);
   }
+  // 浏览器插件的 ZIP：装安装版的人没有源码，README 里的下载链接指向它，名字不能带版本号
+  assert.match(wf, /Compress-Archive -Path extension\/\* -DestinationPath client\/dist\/Buddy-Pet-Extension\.zip/);
+  assert.match(wf, /client\/dist\/latest\.yml \\\s+client\/dist\/Buddy-Pet-Extension\.zip/);
+  assert.match(root('README.md'), /releases\/latest\/download\/Buddy-Pet-Extension\.zip/);
+  assert.match(root('README.md'), /chrome:\/\/extensions[\s\S]*开发者模式[\s\S]*manifest\.json/);
   // Release 说明取自 CHANGELOG.md 里这一版的那一节；现在这一版要写了才算数
   const { changelogSection, releaseNotes } = require('../.github/release-notes');
   assert.equal(changelogSection('# 记录\n说明\n## 1.1.0\n- 新的\n\n## 1.0.0\n- 旧的\n', '1.1.0'), '- 新的');

@@ -24,6 +24,8 @@ function releaseNotes(version, changelog) {
 - **Buddy-Pet-Setup-${version}.exe**：安装版，推荐。已经装了安装版的不用下载，小狗会自己更新（托盘菜单里的「检查更新」可以手动查）。
 - **Buddy-Pet-${version}-portable.exe**：便携版，双击直接运行，不用安装。它不能自动更新，有新版本时只会提示你来这里重新下载。
 
+- **Buddy-Pet-Extension.zip**：Chrome / Edge 插件（推荐装），让小狗知道你在看哪个网站。Chrome 不能直接装 ZIP：先解压，再到 \`chrome://extensions\` 打开「开发者模式」，从解压出来的文件夹加载，步骤见 [README 第 3 节](https://github.com/LongEast/supervise-each-other-#3-安装浏览器插件推荐)。装过的不用重新装。
+
 \`latest.yml\` 和 \`.blockmap\` 是自动更新用的，不用下载。
 
 安装包没有代码签名，第一次运行时 Windows 可能提示「Windows 已保护你的电脑」，点「更多信息」→「仍要运行」。
