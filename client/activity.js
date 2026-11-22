@@ -6,6 +6,7 @@ const os = require('os');
 const path = require('path');
 const readline = require('readline');
 const { classify, isBrowser } = require('./classifier');
+const { HistoryStore, emptyDay, cleanDay, friendSnapshot } = require('./history');
 
 const MAX_TICK_SEC = 10; // 睡眠/卡顿时最多算 10 秒，避免一下子加很多
 const EXT_FRESH_MS = 90_000; // 插件每 30 秒心跳一次；超过 90 秒没消息就当作插件不在了
@@ -19,7 +20,8 @@ const WIRE_TOP = 30;
 const WIRE_MAX_BYTES = 5000;
 const REST_APP = '🍅 番茄钟休息'; // 番茄钟的休息算进学习时间时，明细里记在这个名字下面
 
-const emptyToday = (date) => ({ date, sec: { study: 0, slack: 0, neutral: 0 }, by: { study: {}, slack: {} } });
+// 今天的记录长什么样见 history.js 的 emptyDay：除了时长和明细，还有按小时的分布、番茄数、搭子今天的时长
+const emptyToday = emptyDay;
 
 // 进程名 → 浏览器插件上报时用的 key
 function browserKey(proc) {
@@ -47,7 +49,7 @@ function localDate(d = new Date()) {
 
 class ActivityTracker extends EventEmitter {
   /**
-   * @param {{dataDir:string, getRules:()=>any, getSettings:()=>{idleMinutes:number, slackIdleMinutes?:number}, selfProcNames?:string[]}} opts
+   * @param {{dataDir:string, getRules:()=>any, getSettings:()=>{idleMinutes:number, slackIdleMinutes?:number}, selfProcNames?:string[], history?:HistoryStore}} opts
    */
   constructor(opts) {
     super();
@@ -62,6 +64,7 @@ class ActivityTracker extends EventEmitter {
     this.lastInputAt = 0; // 最近一次确认用户在用电脑的时间（用来决定要不要弹今日计划）
     this.slackStreakSec = 0;
     this.rest = null; // 番茄钟休息中：'free' 摸鱼不算摸鱼 | 'study' 整段算学习 | null 没在休息
+    this.history = opts.history || new HistoryStore(path.join(opts.dataDir, 'history')); // 过完的日子归档到这里，给「统计」页看
     this.today = this._loadToday();
     this.child = null;
     this._stopped = false;
@@ -160,16 +163,19 @@ class ActivityTracker extends EventEmitter {
 
     // 先把这段时间记到「上一个」状态上
     const c = this.current.category;
+    const hour = new Date(now).getHours();
     if (this.paused || dt <= 0) {
       /* 暂停分享期间不计时 */
     } else if (this.rest === 'study') {
       // 番茄钟休息，而且休息算学习：不管在干什么（摸鱼、离开电脑）整段都记成学习
       this.today.sec.study += dt;
+      this.today.hours.study[hour] += dt;
       this.today.by.study[`a:${REST_APP}`] = (this.today.by.study[`a:${REST_APP}`] || 0) + dt;
     } else if (this.rest && c === 'slack') {
       /* 番茄钟休息时摸鱼：不算摸鱼，也不算学习。休息时接着学习的照常往下记 */
     } else {
       if (c === 'study' || c === 'slack' || c === 'neutral') this.today.sec[c] += dt;
+      if (c === 'study' || c === 'slack') this.today.hours[c][hour] += dt; // 按小时的分布：「今天什么时候在学」
       else if (c === 'private') this.today.sec.neutral += dt; // 隐私应用不算学习也不算摸鱼
       if (c === 'slack') this.slackStreakSec += dt;
       // 明细：学习 / 摸鱼的时间分别记到具体的网站（域名）或应用上。隐私应用不在这两类里，不会被记下来
@@ -257,6 +263,31 @@ class ActivityTracker extends EventEmitter {
     };
   }
 
+  // ---------- 番茄钟、搭子：也记在今天这份记录里 ----------
+  /** 完整专注完了一个番茄（手动跳过的不算） */
+  addPomodoro(focusMinutes) {
+    this._rollDay();
+    this.today.pomo.count += 1;
+    this.today.pomo.focusMin += Math.max(0, Math.round(Number(focusMinutes) || 0));
+  }
+
+  /**
+   * 记下搭子今天的时长（对方状态里的 todaySec 和 breakdown），以后「统计」页能回看 TA 这一天。
+   * 记在自己的日期下面：两个人不在同一个时区的话，零点前后会差一点。
+   */
+  setFriendDay(name, todaySec, breakdown) {
+    const f = friendSnapshot(name, todaySec, breakdown);
+    if (!f) return;
+    this._rollDay();
+    this.today.friend = f;
+  }
+
+  /** 今天这份记录（还在往上加的那一份） */
+  dayRecord() {
+    this._rollDay();
+    return this.today;
+  }
+
   // ---------- 今日统计持久化 ----------
   _file() {
     return path.join(this.dataDir, 'today.json');
@@ -264,9 +295,10 @@ class ActivityTracker extends EventEmitter {
 
   _loadToday() {
     try {
-      const t = JSON.parse(fs.readFileSync(this._file(), 'utf8'));
-      // 旧版本存的文件里没有 by（明细），补上空的
-      if (t.date === localDate()) return { ...t, by: { study: { ...t.by?.study }, slack: { ...t.by?.slack } } };
+      // 旧版本存的文件里没有 by（明细）、hours、pomo 这些，cleanDay 会补上空的
+      const t = cleanDay(JSON.parse(fs.readFileSync(this._file(), 'utf8')));
+      if (t?.date === localDate()) return t;
+      if (t) this.history.save(t); // 上次退出之后跨了天：那一天的还没归档
     } catch {
       /* 没有就新建 */
     }
@@ -285,6 +317,7 @@ class ActivityTracker extends EventEmitter {
   _rollDay() {
     const d = localDate();
     if (this.today.date !== d) {
+      this.history.save(this.today); // 过完的这一天归档
       this.today = emptyToday(d);
       this.slackStreakSec = 0;
     }

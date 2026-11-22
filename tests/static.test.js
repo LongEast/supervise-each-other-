@@ -49,8 +49,8 @@ test('便携版每次启动解压到各自的临时目录（共用一个目录�
   assert.equal(JSON.parse(read('package.json')).build.portable.unpackDirName, true);
 });
 
-test('页面里用到的共享脚本都在它前面加载（names.js 给小狗和明细窗口提供应用 / 网站的名字）', () => {
-  for (const [page, script] of [['pet.html', 'pet.js'], ['stats.html', 'stats.js']]) {
+test('页面里用到的共享脚本都在它前面加载（names.js 给小狗和面板提供应用 / 网站的名字）', () => {
+  for (const [page, script] of [['pet.html', 'pet.js'], ['panel.html', 'panel.js']]) {
     const html = read(`renderer/${page}`);
     const names = html.indexOf('<script src="names.js">');
     assert.ok(names > 0 && names < html.indexOf(`<script src="${script}">`), page);
@@ -72,17 +72,22 @@ test('右键小狗能换成显示自己的状态：小狗和名牌都接了右�
   assert.match(main, /ipcMain\.on\('pet:menu', showPetMenu\)/);
   assert.match(main, /petView: c\.petView === 'me' \? 'me' : 'friend'/); // 配置文件里是别的值就当默认
   assert.match(main, /petView: config\.petView,/); // 要推给小狗窗口
-  assert.match(main, /submenu: petViewItems\(\)/); // 托盘菜单里也有入口，小狗隐藏时也能切
+  // 小狗隐藏时也能切：面板的设置页里有（从托盘菜单的「打开面板」进）
+  assert.match(main, /ipcMain\.on\('pet:set-view', \(_e, view\) => setPetView\(view\)\)/);
+  assert.match(read('renderer/panel.js'), /seg\(\$\('petViewSeg'\),[^\n]*buddy\.setPetView\(v\)\)/);
 });
 
-test('换形象：右键菜单和托盘菜单里能选，选择会记住；每套形象都画齐了各个状态要用的部件', () => {
+test('换形象：右键菜单和面板的设置页里能选，选择会记住；每套形象都画齐了各个状态要用的部件', () => {
   const main = read('main.js');
   assert.match(main, /petSkin: 'dog',/); // 默认还是小狗
   assert.match(main, /petSkin: validSkin\(c\.petSkin\),/); // 配置文件里是不认识的名字就当默认
   assert.match(main, /petSkin: config\.petSkin,/); // 要推给小狗窗口
   const menu = main.slice(main.indexOf('function showPetMenu()'), main.indexOf('function hidePet()'));
   assert.match(menu, /submenu: petSkinItems\(\)/);
-  assert.equal(main.match(/submenu: petSkinItems\(\)/g).length, 2); // 另一个在托盘菜单里，小狗隐藏时也能换
+  // 小狗隐藏时也能换：面板的设置页里有，选项来自主进程推过来的 PET_SKINS
+  assert.match(main, /ipcMain\.on\('pet:set-skin', \(_e, skin\) => setPetSkin\(skin\)\)/);
+  assert.match(main, /skins: PET_SKINS,/);
+  assert.match(read('renderer/panel.js'), /seg\(\$\('petSkinSeg'\),[^\n]*buddy\.setPetSkin\(id\)\)/);
 
   const skins = [...main.slice(main.indexOf('const PET_SKINS = ['), main.indexOf('const validSkin')).matchAll(/\['(\w+)', '[^']+'\]/g)].map((m) => m[1]);
   assert.deepEqual(skins, ['dog', 'cat']);
@@ -116,8 +121,8 @@ test('换了形象以后称呼和托盘图标跟着换：菜单、气泡、通�
   assert.deepEqual(lines(main), ["['dog', '🐶 小狗'],"]);
   assert.deepEqual(lines(read('renderer/pet.js')), ["const petName = () => state?.petName || '小狗';"]);
   assert.match(read('renderer/pet.js'), /const petName = \(\) => state\?\.petName \|\| '小狗';/);
-  // 设置页的说明文字：写「小狗」的地方都包在 .pet-name 里，收到状态后改口
-  const settings = read('renderer/settings.html');
+  // 面板（设置页在里面）的说明文字：写「小狗」的地方都包在 .pet-name 里，收到状态后改口
+  const settings = read('renderer/panel.html');
   assert.equal(settings.match(/小狗/g).length, settings.match(/<span class="pet-name">小狗<\/span>/g).length);
   assert.match(read('renderer/settings.js'), /querySelectorAll\('\.pet-name'\)\) e\.textContent = s\.petName \|\| '小狗';/);
   // 托盘图标：每个形象一张，换形象时托盘跟着换
@@ -143,7 +148,7 @@ test('连续摸鱼提醒：开关和时间在设置里，到点弹置顶窗口�
   assert.match(main, /remindWin\.setAlwaysOnTop\(true, 'screen-saver'\)/);
   assert.match(main, /remindWin\?\.showInactive\(\)/); // 用 show() 的话，正在打的字会落到提醒窗口上
   assert.doesNotMatch(main, /SELF_ALERT_MINUTES/); // 旧的固定 20/40/60 档已经并进来了
-  const html = read('renderer/settings.html');
+  const html = read('renderer/panel.html');
   for (const id of ['slackRemind', 'slackRemindMinutes', 'slackRemindOptions', 'slackIdleMinutes']) {
     assert.match(html, new RegExp(`id="${id}"`));
     assert.match(read('renderer/settings.js'), new RegExp(`${id}: \\$\\('${id}'\\)`), `${id} 要随设置一起保存`);
@@ -151,7 +156,7 @@ test('连续摸鱼提醒：开关和时间在设置里，到点弹置顶窗口�
   assert.match(read('renderer/remind.html'), /<script src="remind\.js">/);
   assert.match(read('renderer/remind.js'), /buddy\.onRemind\(show\)/);
   assert.match(read('renderer/remind.js'), /buddy\.remindNext\(Number\(\$\('next'\)\.value\)\)/);
-  // 设置页和主进程用同一份规则整理「可以选的时间」，reminder.js 要在 settings.js 前面加载
+  // 设置页（在面板里）和主进程用同一份规则整理「可以选的时间」，reminder.js 要在 settings.js 前面加载
   const reminderAt = html.indexOf('<script src="../reminder.js">');
   assert.ok(reminderAt > 0 && reminderAt < html.indexOf('<script src="settings.js">'));
   assert.match(read('reminder.js'), /if \(typeof module !== 'undefined'\) module\.exports/); // 页面里没有 module
@@ -208,7 +213,7 @@ test('番茄钟：右键小狗开始，时长和「休息算不算学习」在�
   assert.doesNotMatch(main, /status: tracker\.getStatus\(\)/);
   assert.match(main, /if \(s\.paused \|\| !pomodoro\.phase\) return s;/);
 
-  const html = read('renderer/settings.html');
+  const html = read('renderer/panel.html');
   const js = read('renderer/settings.js');
   for (const id of ['pomodoroFocusMinutes', 'pomodoroBreakMinutes', 'pomodoroBreakCounts']) {
     assert.match(html, new RegExp(`id="${id}"`));
@@ -239,6 +244,66 @@ test('番茄钟：右键小狗开始，时长和「休息算不算学习」在�
   // 小狗：等着点的时候倒计时那里显示「等你开始」，搭子的卡片上也有一行
   assert.match(pet, /if \(p\.phase === 'wait'\)/);
   assert.match(pet, /pomo\?\.phase === 'wait'/);
+});
+
+test('面板：一个窗口四页（今天 / 统计 / 计划 / 设置），托盘菜单只留随手要点的', () => {
+  const main = read('main.js');
+  const html = read('renderer/panel.html');
+  const js = read('renderer/panel.js');
+  // 原来单独的设置窗口和「今日时长明细」窗口都并进来了
+  for (const f of ['settings.html', 'stats.html', 'stats.js', 'stats.css']) assert.ok(!fs.existsSync(path.join(__dirname, '..', 'client', 'renderer', f)), `${f} 应该已经删掉`);
+  assert.doesNotMatch(main, /settingsWin|statsWin/);
+  assert.match(main, /panelWin\.loadFile\(path\.join\(__dirname, 'renderer', 'panel\.html'\), \{ query: go \}\)/);
+  assert.match(main, /useContentSize: true,/); // 960×620 说的是页面，不含标题栏
+  assert.match(main, /panelWin\.webContents\.send\('panel-go', go\)/); // 已经开着就切页，不开第二个
+  assert.match(main, /if \(panelWin && !panelWin\.isDestroyed\(\)\) panelWin\.webContents\.send\('state', viewState\(\)\);/);
+  assert.match(main, /function openSettings\(\) \{\s*openPanel\('settings'\);/); // 第一次打开、小狗卡片上的「设置」
+  for (const p of ['today', 'stats', 'plan', 'settings']) {
+    assert.match(html, new RegExp(`<section id="page-${p}"`));
+    assert.match(html, new RegExp(`class="nav[^"]*" data-page="${p}"`));
+  }
+  // 设置页的表单还是 settings.js 管，所以它要的元素都得在；panel.js 整个包在函数里，不和它的全局名字撞
+  for (const id of ['form', 'saved', 'connPill', 'friendPill', 'extPill', 'history', 'resetRules', 'serverUrl', 'room', 'secret', 'name', 'openAtLogin', 'planTime', 'reviewTime']) {
+    assert.match(html, new RegExp(`id="${id}"`), `面板里缺少 ${id}`);
+  }
+  assert.ok(html.indexOf('<script src="settings.js">') < html.indexOf('<script src="panel.js">'));
+  assert.match(js, /^\(\(\) => \{$/m);
+  assert.match(html, /<button type="submit" form="form"/); // 保存按钮在页面右上角，不在表单里面
+
+  // 托盘菜单：状态、打开面板、番茄钟、暂停分享、隐藏 / 显示、退出；新版本下载好了才多一项「重启并更新」
+  const tray = main.slice(main.indexOf('function updateTray()'), main.indexOf('function trayImage()'));
+  assert.match(tray, /label: `打开面板（今日计划 \$\{planLabel\}）`, click: \(\) => openPanel\(\)/);
+  assert.match(tray, /\.\.\.\(updateReady \? \[\{ label: `重启并更新到 \$\{updateReady\}`/);
+  assert.doesNotMatch(tray, /submenu:|openJournal|检查更新|设置…/);
+  assert.equal(tray.match(/label:/g).length, 6); // 番茄钟那几项是 pomodoroItems() 给的，不算在里面
+  // 搬走的几项在面板里都有地方点
+  for (const [ch, fn] of [['pet:set-scale', 'setPetScale'], ['update:check', 'checkForUpdates'], ['pomodoro:start', 'startPomodoro'], ['pomodoro:skip', 'skipPomodoro']]) {
+    assert.match(main, new RegExp(`ipcMain\\.on\\('${ch}',[^\\n]*${fn}`));
+  }
+  assert.match(js, /buddy\.checkUpdate\(\)/);
+  // 右键小狗的菜单也是一项「打开面板」
+  const menu = main.slice(main.indexOf('function showPetMenu()'), main.indexOf('function hidePet()'));
+  assert.match(menu, /label: '打开面板[^']*', click: \(\) => openPanel\(\)/);
+});
+
+test('统计：每天的时长、按小时的分布、番茄数、搭子的时长都记下来，面板按天 / 按周看', () => {
+  const main = read('main.js');
+  const activity = read('activity.js');
+  assert.match(activity, /this\.history\.save\(this\.today\); \/\/ 过完的这一天归档/);
+  assert.match(activity, /if \(t\) this\.history\.save\(t\);/); // 上次退出后跨了天，启动时补归档
+  assert.match(activity, /this\.today\.hours\[c\]\[hour\] \+= dt;/);
+  // 完整专注完一个番茄才记；手动跳过的不经过 tick 的 'break' 事件
+  assert.match(main, /if \(events\.includes\('break'\)\) tracker\.addPomodoro\(focusMinutes\);/);
+  assert.match(main, /if \(st\?\.todaySec\) tracker\.setFriendDay\(friend\.name, st\.todaySec, st\.breakdown\);/);
+  // 今天的从 tracker 拿（还在往上加），以前的从归档里读；日期乱填或者填了以后的日子都当今天
+  assert.match(main, /date: isDate\(date\) && date <= today \? date : today,/);
+  assert.match(main, /loadRecord: \(d\) => \(d === today \? tracker\.dayRecord\(\) : tracker\.history\.load\(d\)\),/);
+  assert.match(main, /ipcMain\.handle\('stats:day', \(_e, date\) => buildDay\(statsSource\(date\)\)\)/);
+  assert.match(main, /ipcMain\.handle\('stats:week', \(_e, date\) => buildWeek\(statsSource\(date\)\)\)/);
+  const js = read('renderer/panel.js');
+  assert.match(js, /buddy\.statsWeek\(stats\.date\) : buddy\.statsDay\(stats\.date\)/);
+  // 对方发来的名字、域名、计划内容只当文本：面板里不拼 HTML
+  assert.doesNotMatch(js, /innerHTML|insertAdjacentHTML|outerHTML/);
 });
 
 test('发版：推 v 开头的 tag 后由 GitHub Actions 打包并发 Release，自动更新要的四个文件都传上去', () => {

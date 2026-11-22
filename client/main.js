@@ -10,6 +10,7 @@ const { clampScale, petSize, rescaleBounds, SCALE_STEP } = require('./pet-geomet
 const { SlackReminder, clampRemindMinutes, remindOptions, REMIND_DEFAULT, REMIND_OPTIONS } = require('./reminder');
 const { Pomodoro, clampFocusMinutes, clampBreakMinutes, POMO_FOCUS_DEFAULT, POMO_BREAK_DEFAULT } = require('./pomodoro');
 const { JournalStore, JournalSync, duePrompt, markPrompted, snooze, snoozesLeft, progress, toMinutes, isDate, addDays } = require('./journal');
+const { buildDay, buildWeek } = require('./history');
 
 const APP_ID = 'com.buddypet.app'; // 要和 package.json 里的 build.appId 一致
 const EXT_PORT = 17321;
@@ -126,9 +127,8 @@ const journal = new JournalSync({ store: journalStore, send: (msg) => relay.send
 
 let friend = null; // { name, online, status }
 let petWin = null;
-let settingsWin = null;
+let panelWin = null; // 面板：今天 / 统计 / 计划 / 设置
 const journalWins = {}; // 'plan:2026-01-02' 这样的 key → 窗口
-let statsWin = null; // 「今日时长明细」窗口
 let remindWin = null; // 「该学习啦」/「休息结束啦」提醒窗口
 let remindKind = null; // 窗口上现在显示的是哪种：'slack' 连续摸鱼 | 'focus' 番茄钟休息结束，等着点「重新开始」
 let tray = null;
@@ -156,12 +156,18 @@ function viewState() {
     petView: config.petView,
     petSkin: config.petSkin,
     petName: petName(),
-    pomodoro: pomodoro.phase ? { phase: pomodoro.phase, endsAt: pomodoro.endsAt } : null, // 小狗头上的倒计时
+    pomodoro: pomodoro.phase ? { phase: pomodoro.phase, endsAt: pomodoro.endsAt, minutes: pomodoro.minutes } : null, // 小狗头上的倒计时
+    // 下面几项是面板用的
+    pomoSettings: pomoSettings(),
+    pomoToday: tracker.dayRecord().pomo.count, // 今天完整专注完了几个番茄
+    skins: PET_SKINS,
+    version: app.getVersion(),
+    updateReady, // 已经下载好、等着安装的版本号
   };
 }
 function pushState() {
   if (petWin && !petWin.isDestroyed()) petWin.webContents.send('state', viewState());
-  if (settingsWin && !settingsWin.isDestroyed()) settingsWin.webContents.send('state', viewState());
+  if (panelWin && !panelWin.isDestroyed()) panelWin.webContents.send('state', viewState());
 }
 
 // ---------------- 上报自己的状态 ----------------
@@ -228,6 +234,9 @@ relay.on('message', (msg) => {
       petWin?.webContents.send('poke-result', { ok: false, retryInMs: msg.retryInMs });
       break;
   }
+  // 搭子今天的时长跟着存一份，「统计」页以后能回看（TA 暂停分享或者是旧版本时状态里没有）
+  const st = friend?.online ? friend.status : null;
+  if (st?.todaySec) tracker.setFriendDay(friend.name, st.todaySec, st.breakdown);
   pushState();
 });
 
@@ -238,7 +247,7 @@ function onFriendJournal(name, raw) {
   journalChanged();
 }
 function journalChanged() {
-  for (const w of [...Object.values(journalWins), settingsWin]) {
+  for (const w of [...Object.values(journalWins), panelWin]) {
     if (w && !w.isDestroyed()) w.webContents.send('journal-changed');
   }
   pushState();
@@ -266,26 +275,36 @@ function openJournal(mode, { reminder = false, date = localDate() } = {}) {
   journalWins[key] = win;
 }
 
-// ---------------- 今日时长明细 ----------------
-// 小狗卡片上列不下的，在这个窗口里看全部。who: 'me' | 'friend'，cat: 'study' | 'slack'
-function openStats({ who, cat } = {}) {
-  const query = { who: who === 'friend' ? 'friend' : 'me', cat: cat === 'slack' ? 'slack' : 'study' };
-  if (statsWin && !statsWin.isDestroyed()) {
-    if (statsWin.isMinimized()) statsWin.restore();
-    statsWin.webContents.send('stats-select', query); // 已经开着：切到要看的那一页
-    return statsWin.focus();
+// ---------------- 面板 ----------------
+// 一个带侧边栏的窗口，四页：今天 / 统计 / 计划 / 设置（renderer/panel.html）。
+// 托盘菜单和右键菜单里的「打开面板」、小狗卡片上的「看全部」「设置」都到这里。
+const PANEL_PAGES = ['today', 'stats', 'plan', 'settings'];
+/** @param {string} [page] 打开哪一页；opts 里可以带 who（'me' | 'friend'）让统计页直接看谁的 */
+function openPanel(page, opts = {}) {
+  const go = { page: PANEL_PAGES.includes(page) ? page : 'today' };
+  if (opts.who === 'friend' || opts.who === 'me') go.who = opts.who;
+  if (panelWin && !panelWin.isDestroyed()) {
+    if (panelWin.isMinimized()) panelWin.restore();
+    panelWin.webContents.send('panel-go', go); // 已经开着：切到要看的那一页
+    return panelWin.focus();
   }
-  statsWin = new BrowserWindow({
-    width: 440,
-    height: 600,
-    title: '今日时长明细',
+  panelWin = new BrowserWindow({
+    width: 960,
+    height: 620,
+    useContentSize: true, // 960×620 是页面的大小，不算标题栏
+    minWidth: 900,
+    minHeight: 560,
+    title: 'Buddy Pet',
     autoHideMenuBar: true,
-    maximizable: false,
+    backgroundColor: '#faf7f2',
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
   });
-  statsWin.loadFile(path.join(__dirname, 'renderer', 'stats.html'), { query });
-  statsWin.on('closed', () => (statsWin = null));
+  panelWin.loadFile(path.join(__dirname, 'renderer', 'panel.html'), { query: go });
+  panelWin.webContents.on('did-finish-load', pushState);
+  panelWin.on('closed', () => (panelWin = null));
 }
+// 小狗卡片上明细里的「看全部」：统计页的今天
+const openStats = ({ who } = {}) => openPanel('stats', { who });
 
 // ---------------- 「该学习啦」/「休息结束啦」提醒 ----------------
 // 置顶的小窗口，要自己点掉；小狗同时抖一下、冒个气泡。只提醒自己，不发给搭子。
@@ -412,7 +431,9 @@ function restMorePomodoro() {
   if (pomodoro.restMore(Date.now(), pomoSettings())) pomodoroChanged('break', { again: true });
 }
 function tickPomodoro() {
+  const focusMinutes = pomodoro.phase === 'focus' ? pomodoro.minutes : 0;
   const events = pomodoro.tick(Date.now(), { lastInputAt: tracker.lastInputAt }, pomoSettings());
+  if (events.includes('break')) tracker.addPomodoro(focusMinutes); // 完整专注完一个：记进今天的统计（手动跳过的不算）
   // 休息结束：不自己开始下一轮，弹窗等你选。窗口被直接关掉的话还停在这儿，右键小狗也能选
   if (events.includes('wait')) showRemindWindow({ kind: 'focus', ...pomoSettings() });
   const kind = ['idle', 'break', 'wait'].find((k) => events.includes(k));
@@ -572,8 +593,7 @@ function showPetMenu() {
     ...pomodoroItems(true),
     { type: 'separator' },
     { label: tracker.paused ? '▶ 恢复分享' : '⏸ 暂停分享（处理私事）', click: togglePause },
-    { label: '今日时长明细', click: () => openStats() },
-    { label: '设置…', click: openSettings },
+    { label: '打开面板（统计、计划、设置）', click: () => openPanel() },
     { type: 'separator' },
     // 托盘图标在 Win11 上默认收在「^」里不好找，任务栏图标的「关闭窗口」又只关设置之类的窗口，所以这里也要能关
     { label: `隐藏${petName()}（点托盘图标再叫出来）`, click: hidePet },
@@ -586,20 +606,7 @@ function hidePet() {
 }
 
 function openSettings() {
-  if (settingsWin && !settingsWin.isDestroyed()) {
-    if (settingsWin.isMinimized()) settingsWin.restore();
-    return settingsWin.focus();
-  }
-  settingsWin = new BrowserWindow({
-    width: 560,
-    height: 760,
-    title: 'Buddy Pet 设置',
-    autoHideMenuBar: true,
-    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
-  });
-  settingsWin.loadFile(path.join(__dirname, 'renderer', 'settings.html'));
-  settingsWin.webContents.on('did-finish-load', pushState);
-  settingsWin.on('closed', () => (settingsWin = null));
+  openPanel('settings');
 }
 
 function updateTray() {
@@ -607,18 +614,20 @@ function updateTray() {
   const label = { online: '已连接', connecting: '连接中…', error: '未连接', idle: '未连接' }[relay.state] || '';
   tray.setToolTip(`Buddy Pet · ${label}${tracker.paused ? ' · 已暂停分享' : ''}`);
   const mine = progress(journal.mine());
-  const planLabel = mine ? `（${mine.done}/${mine.total}${mine.reviewed ? '，已复盘' : ''}）` : '（还没写）';
-  const next = progress(journal.mine(addDays(localDate(), 1)));
-  const tomorrowLabel = next ? `（已写 ${next.total} 条）` : '';
+  const planLabel = mine ? `${mine.done}/${mine.total}${mine.reviewed ? '，已复盘' : ''}` : '还没写';
   const pet = petName();
   if (trayIconSkin !== config.petSkin) {
     tray.setImage(trayImage()); // 托盘图标也跟着形象换
     trayIconSkin = config.petSkin;
   }
+  // 菜单只留随手要点的；计划、统计，还有大小、显示谁、换形象、查新版本这些都在面板里
   tray.setContextMenu(
     Menu.buildFromTemplate([
       { label: `状态：${label}${relay.state === 'error' && relay.lastError ? '（' + relay.lastError + '）' : ''}`, enabled: false },
       { type: 'separator' },
+      { label: `打开面板（今日计划 ${planLabel}）`, click: () => openPanel() },
+      { type: 'separator' },
+      ...pomodoroItems(false),
       {
         label: tracker.paused ? '▶ 恢复分享' : '⏸ 暂停分享（处理私事）',
         click: togglePause,
@@ -632,30 +641,9 @@ function updateTray() {
           updateTray();
         },
       },
-      {
-        label: `${pet}大小（也可以在${pet}身上滚滚轮）`,
-        submenu: [['小', 0.75], ['标准', 1], ['大', 1.5], ['特大', 2]].map(([name, s]) => ({
-          label: `${name} ${Math.round(s * 100)}%`,
-          type: 'radio',
-          checked: config.petScale === s,
-          click: () => setPetScale(s),
-        })),
-      },
-      { label: `${pet}显示谁（也可以右键${pet}）`, submenu: petViewItems() },
-      { label: `换个形象（也可以右键${pet}）`, submenu: petSkinItems() },
       { type: 'separator' },
-      ...pomodoroItems(false),
-      { type: 'separator' },
-      { label: `今日计划${planLabel}`, click: () => openJournal('plan') },
-      { label: `明日计划${tomorrowLabel}`, click: openTomorrowPlan },
-      { label: '今日复盘', click: () => openJournal('review', { date: journal.reviewDate() }) },
-      { label: '今日时长明细', click: () => openStats() },
-      { type: 'separator' },
-      { label: '设置…', click: openSettings },
-      updateReady
-        ? { label: `重启并更新到 ${updateReady}`, click: () => promptInstall(updateReady) }
-        : { label: `检查更新（当前 ${app.getVersion()}）`, click: () => checkForUpdates(true) },
-      { type: 'separator' },
+      // 新版本下载好了才出现；平时要手动查新版本，去面板的最后一页
+      ...(updateReady ? [{ label: `重启并更新到 ${updateReady}`, click: () => promptInstall(updateReady) }] : []),
       { label: '退出', click: () => app.quit() },
     ])
   );
@@ -743,6 +731,7 @@ function setupUpdater() {
   updater.on('update-downloaded', (info) => {
     updateReady = info.version;
     updateTray();
+    pushState(); // 面板的设置页上也显示「重启并更新」
     promptInstall(info.version);
   });
   updater.on('error', (e) => {
@@ -781,9 +770,17 @@ ipcMain.on('pet:drag', (_e, phase) => {
 // 在小狗身上滚滚轮：dir > 0 放大一格，< 0 缩小一格
 ipcMain.on('pet:scale', (_e, dir) => setPetScale(config.petScale + (dir > 0 ? SCALE_STEP : -SCALE_STEP)));
 ipcMain.on('pet:menu', showPetMenu);
+// 面板的设置页里调的：大小、显示谁、换形象（原来在托盘菜单里）
+ipcMain.on('pet:set-scale', (_e, scale) => setPetScale(Number(scale)));
+ipcMain.on('pet:set-view', (_e, view) => setPetView(view));
+ipcMain.on('pet:set-skin', (_e, skin) => setPetSkin(skin));
+ipcMain.on('update:check', () => (updateReady ? promptInstall(updateReady) : checkForUpdates(true)));
+ipcMain.on('panel:open', (_e, page) => openPanel(page));
 // 提醒窗口里改了「再过 X 分钟提醒我」：只管下一次，从现在的连续摸鱼时长往后数
 ipcMain.on('remind:next', (_e, minutes) => reminder.snooze(minutes, tracker.paused ? 0 : tracker.slackStreakSec));
 // 「休息结束啦」窗口里的三个选择
+ipcMain.on('pomodoro:start', startPomodoro); // 面板「今天」页上的按钮
+ipcMain.on('pomodoro:skip', skipPomodoro);
 ipcMain.on('pomodoro:resume', resumePomodoro);
 ipcMain.on('pomodoro:rest', restMorePomodoro);
 ipcMain.on('pomodoro:stop', stopPomodoro); // 「恢复默认模式」：不再用番茄钟计时
@@ -830,7 +827,12 @@ ipcMain.handle('config:save', (_e, next) => {
 ipcMain.handle('config:resetRules', () => DEFAULT_RULES);
 ipcMain.on('open-settings', openSettings);
 
-ipcMain.on('journal:open', (_e, mode) => (mode === 'tomorrow' ? openTomorrowPlan() : openJournal(['plan', 'review', 'view'].includes(mode) ? mode : 'plan')));
+ipcMain.on('journal:open', (_e, mode) => {
+  if (mode === 'tomorrow') return openTomorrowPlan();
+  // 面板「计划」页里补昨天的复盘
+  if (mode === 'review-yesterday') return openJournal('review', { date: addDays(localDate(), -1) });
+  openJournal(['plan', 'review', 'view'].includes(mode) ? mode : 'plan');
+});
 ipcMain.handle('journal:get', (_e, date) => {
   const today = localDate();
   const day = journalStore.load(isDate(date) ? date : today);
@@ -859,20 +861,24 @@ ipcMain.handle('journal:history', () => {
   return { today, days: [{ date: tomorrow, me: journalStore.load(tomorrow).me, friend: null }, ...journalStore.recent(7, today)] };
 });
 ipcMain.on('stats:open', (_e, sel) => openStats(sel || {}));
-ipcMain.handle('stats:get', () => {
-  // 自己的是本机的完整记录（暂停分享时也有）；对方的是 TA 发来的那部分，不在线或暂停分享时没有
-  const st = friend?.online ? friend.status : null;
+// 「统计」页：某一天 / 某一周。今天的记录在 tracker 手里（还在往上加），以前的从归档里读
+const statsSource = (date) => {
+  const today = localDate();
   return {
-    me: { todaySec: tracker.todaySec(), breakdown: tracker.breakdown(Infinity) },
-    friend: st?.todaySec ? { name: friend.name, todaySec: st.todaySec, breakdown: st.breakdown || null } : null,
+    date: isDate(date) && date <= today ? date : today,
+    today,
+    loadRecord: (d) => (d === today ? tracker.dayRecord() : tracker.history.load(d)),
+    loadJournal: (d) => journalStore.load(d),
   };
-});
+};
+ipcMain.handle('stats:day', (_e, date) => buildDay(statsSource(date)));
+ipcMain.handle('stats:week', (_e, date) => buildWeek(statsSource(date)));
 ipcMain.on('toggle-pause', togglePause);
 
 // ---------------- 启动 ----------------
 app.on('second-instance', () => {
   if (petWin) petWin.show();
-  openSettings();
+  openPanel();
 });
 app.on('window-all-closed', (e) => e.preventDefault()); // 托盘常驻
 app.on('before-quit', () => {

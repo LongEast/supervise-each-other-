@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'" />
+  <title>Buddy Pet</title>
+  <link rel="stylesheet" href="journal-view.css" />
+  <link rel="stylesheet" href="panel.css" />
+</head>
+<body>
+  <!-- 面板：左边导航，右边四页（今天 / 统计 / 计划 / 设置）。页面逻辑在 panel.js；设置页的表单沿用 settings.js -->
+  <nav class="side">
+    <div class="brand">Buddy Pet</div>
+    <button type="button" class="nav on" data-page="today">
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3" /><path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1 1M11.6 11.6l1 1M12.6 3.4l-1 1M4.4 11.6l-1 1" /></svg>
+      <span>今天</span>
+    </button>
+    <button type="button" class="nav" data-page="stats">
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16"><path d="M3 13V8M8 13V3M13 13V6" /></svg>
+      <span>统计</span>
+    </button>
+    <button type="button" class="nav" data-page="plan">
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16"><path d="M2.5 4.5l1.2 1.2L6 3.4M8.5 4.5h5M2.5 10.5l1.2 1.2L6 9.4M8.5 10.5h5" /></svg>
+      <span>计划</span>
+    </button>
+    <button type="button" class="nav" data-page="settings">
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16"><path d="M2 4.5h7M12.5 4.5H14M2 11.5h1.5M7 11.5h7" /><circle cx="10.75" cy="4.5" r="1.75" /><circle cx="5.25" cy="11.5" r="1.75" /></svg>
+      <span>设置</span>
+    </button>
+    <div class="side-foot">
+      <div class="conn"><span id="connDot" class="dot"></span><span id="connText">未连接</span></div>
+      <button type="button" id="pauseBtn" class="side-btn">暂停分享</button>
+    </div>
+  </nav>
+
+  <main>
+    <!-- ================= 今天 ================= -->
+    <section id="page-today" class="page">
+      <header class="head">
+        <h1>今天</h1>
+        <div id="todayDate" class="muted"></div>
+      </header>
+
+      <div class="hero-row">
+        <div id="hero" class="hero">
+          <div class="hero-label"><span class="dot tomato"></span><span id="heroLabel">番茄钟</span></div>
+          <div id="heroTime" class="hero-time">25:00</div>
+          <div id="heroSub" class="hero-sub"></div>
+          <div class="hero-bar"><div id="heroFill"></div></div>
+          <div id="heroBtns" class="hero-btns"></div>
+          <!-- 装饰用，只画了默认形象；换成别的形象时不显示（panel.js 按 petSkin 藏起来） -->
+          <svg id="heroPet" class="hero-pet" aria-hidden="true" viewBox="0 0 160 140">
+            <ellipse cx="80" cy="132" rx="48" ry="6" fill="rgba(0,0,0,0.12)" />
+            <path d="M112 104 C130 100 134 82 124 74 C120 86 114 94 104 96 Z" fill="#c98b54" />
+            <ellipse cx="80" cy="102" rx="38" ry="30" fill="#f2c38b" />
+            <ellipse cx="80" cy="108" rx="22" ry="20" fill="#fff1dc" />
+            <ellipse cx="64" cy="128" rx="10" ry="6" fill="#f2c38b" />
+            <ellipse cx="96" cy="128" rx="10" ry="6" fill="#f2c38b" />
+            <path d="M44 40 C30 44 28 72 40 80 C46 70 48 56 52 46 Z" fill="#c98b54" />
+            <path d="M116 40 C130 44 132 72 120 80 C114 70 112 56 108 46 Z" fill="#c98b54" />
+            <ellipse cx="80" cy="58" rx="38" ry="33" fill="#f2c38b" />
+            <ellipse cx="80" cy="72" rx="19" ry="13" fill="#fff1dc" />
+            <circle cx="56" cy="70" r="6" fill="#f7a7a0" opacity="0.55" />
+            <circle cx="104" cy="70" r="6" fill="#f7a7a0" opacity="0.55" />
+            <circle cx="66" cy="56" r="5" fill="#3a2a20" /><circle cx="67.6" cy="54.2" r="1.6" fill="#fff" />
+            <circle cx="94" cy="56" r="5" fill="#3a2a20" /><circle cx="95.6" cy="54.2" r="1.6" fill="#fff" />
+            <ellipse cx="80" cy="66" rx="4.5" ry="3.2" fill="#3a2a20" />
+            <path d="M80 69 L80 73 M80 73 Q76 77 73 74 M80 73 Q84 77 87 74" fill="none" stroke="#3a2a20" stroke-width="2" stroke-linecap="round" />
+            <path d="M60 104 L100 104 L104 124 L56 124 Z" fill="#5b6472" />
+            <rect x="50" y="123" width="60" height="5" rx="2" fill="#8d96a3" />
+            <circle cx="80" cy="114" r="2" fill="#a9e3ff" />
+          </svg>
+        </div>
+
+        <div class="card versus">
+          <div class="who-row"><b>我</b><span id="meBadge" class="badge"></span><span id="meWhat" class="what muted"></span></div>
+          <div id="meBar" class="split"></div>
+          <div id="meNums" class="nums"></div>
+          <div class="rule"></div>
+          <div class="who-row"><b id="friendName">搭子</b><span id="friendBadge" class="badge"></span><span id="friendWhat" class="what muted"></span></div>
+          <div id="friendBar" class="split"></div>
+          <div class="nums-row">
+            <div id="friendNums" class="nums"></div>
+            <button type="button" id="pokeBtn" class="btn solid">戳一下</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card plans">
+        <div class="plans-col">
+          <div class="card-head">
+            <b>我的计划</b><span id="myPlanCount" class="muted"></span>
+            <span class="grow"></span>
+            <button type="button" id="toReview" class="btn solid small">写复盘</button>
+            <button type="button" id="toTomorrow" class="btn small">明日计划</button>
+          </div>
+          <div id="myPlan"></div>
+        </div>
+        <div class="plans-col">
+          <div class="card-head"><b id="friendPlanTitle">搭子的计划</b><span id="friendPlanCount" class="muted"></span></div>
+          <div id="friendPlan"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 统计 ================= -->
+    <section id="page-stats" class="page hidden">
+      <header class="head">
+        <h1>统计</h1>
+        <div id="statsMode" class="seg"></div>
+        <div id="statsWho" class="seg"></div>
+        <span class="grow"></span>
+        <button type="button" id="statsPrev" class="icon-btn" aria-label="往前"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 14 14"><path d="M9 2.5 4.5 7 9 11.5" /></svg></button>
+        <div id="statsRange" class="range"></div>
+        <button type="button" id="statsNext" class="icon-btn" aria-label="往后"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 14 14"><path d="M5 2.5 9.5 7 5 11.5" /></svg></button>
+      </header>
+      <div id="statsTiles" class="tiles"></div>
+      <p id="statsNote" class="note hidden"></p>
+      <div id="statsBody"></div>
+    </section>
+
+    <!-- ================= 计划 ================= -->
+    <section id="page-plan" class="page hidden">
+      <header class="head">
+        <h1>计划</h1>
+        <div id="planTabs" class="seg"></div>
+        <span class="grow"></span>
+        <div id="planDate" class="muted"></div>
+      </header>
+
+      <div id="planEdit" class="plan-grid">
+        <div class="card pad">
+          <div class="card-head">
+            <b id="planTitle">今天要做的事</b><span id="planCount" class="muted"></span>
+            <span class="grow"></span>
+            <button type="button" id="planAdd" class="btn small">加一条</button>
+          </div>
+          <p id="planHint" class="note"></p>
+          <div id="planList"></div>
+          <div id="reviewBox">
+            <div class="rule"></div>
+            <label for="improve" class="label-strong">今日复盘：明天想改进的地方（可选）</label>
+            <textarea id="improve" maxlength="200" placeholder="比如：先做最难的那件事"></textarea>
+          </div>
+          <div class="actions">
+            <button type="button" id="planSave" class="btn solid">保存计划</button>
+            <button type="button" id="reviewSave" class="btn solid">完成复盘</button>
+            <span id="planMsg"></span>
+          </div>
+        </div>
+        <div class="col">
+          <div class="card pad">
+            <div class="card-head"><b id="planFriendTitle">搭子今天的计划</b><span id="planFriendCount" class="muted"></span></div>
+            <div id="planFriend"></div>
+          </div>
+          <div class="card pad">
+            <div class="card-head"><b>最近 7 天</b><span class="grow"></span><a href="#" id="planAll" class="small">看全部</a></div>
+            <div id="planRecent"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 历史：明天和最近 7 天，两个人的并排（settings.js 的 loadHistory 往这里填） -->
+      <div id="planHistory" class="card pad hidden">
+        <div id="history"><div class="note">加载中…</div></div>
+      </div>
+    </section>
+
+    <!-- ================= 设置 ================= -->
+    <section id="page-settings" class="page hidden">
+      <header class="head">
+        <h1>设置</h1>
+        <span class="grow"></span>
+        <span id="saved"></span>
+        <button type="submit" form="form" class="btn solid">保存并连接</button>
+      </header>
+      <p class="note">你和搭子填<b>同一个服务器、房间号和密码</b>，昵称各自不同。带输入框的设置改完要点右上角的「保存并连接」才生效。</p>
+      <div class="status">
+        <span id="connPill" class="pill">服务器：—</span>
+        <span id="friendPill" class="pill">搭子：—</span>
+        <span id="extPill" class="pill">浏览器插件：—</span>
+      </div>
+
+      <form id="form" class="settings">
+        <fieldset>
+          <legend>连接</legend>
+          <label for="serverUrl">服务器地址</label>
+          <input type="text" id="serverUrl" placeholder="wss://your-server.example.com" required />
+          <div class="hint">本地测试可以填 ws://localhost:8787</div>
+          <div class="row">
+            <div><label for="room">房间号</label><input type="text" id="room" placeholder="比如 xiaoyi-and-tom" required /></div>
+            <div><label for="secret">房间密码</label><input type="password" id="secret" required /></div>
+          </div>
+          <label for="name">我的昵称</label>
+          <input type="text" id="name" maxlength="24" placeholder="会显示在对方桌面的名牌上" required />
+        </fieldset>
+
+        <fieldset>
+          <legend>桌面上的<span class="pet-name">小狗</span></legend>
+          <div class="hint">这三项点了马上生效，不用保存。在它身上滚滚轮也能调大小，右键它也能换。</div>
+          <label>大小</label>
+          <div id="petScaleSeg" class="seg wide"></div>
+          <label>显示谁的状态</label>
+          <div id="petViewSeg" class="seg wide"></div>
+          <label>形象</label>
+          <div id="petSkinSeg" class="seg wide"></div>
+        </fieldset>
+
+        <fieldset>
+          <legend>番茄钟</legend>
+          <div class="row">
+            <div><label for="pomodoroFocusMinutes">每次专注多少分钟</label><input type="number" id="pomodoroFocusMinutes" min="1" max="180" /></div>
+            <div><label for="pomodoroBreakMinutes">每次休息多少分钟</label><input type="number" id="pomodoroBreakMinutes" min="1" max="60" /></div>
+          </div>
+          <div class="check"><input type="checkbox" id="pomodoroBreakCounts" /><label for="pomodoroBreakCounts">休息时间也计入学习时间</label></div>
+          <div class="hint">在「今天」页或者右键<span class="pet-name">小狗</span>开始，专注和休息轮着来，直到点「结束」；<span class="pet-name">小狗</span>头上有倒计时。到休息时间只冒气泡；休息结束时会弹窗，点「重新开始番茄钟」下一轮才开始计时，也可以点小箭头「再休息一会」，或者「恢复默认模式」结束番茄钟。<br />休息时摸鱼不算摸鱼时间，也不会弹摸鱼提醒。不勾上面这项的话休息时间也不算学习时间（休息时还在接着学的照常算）；勾上就整段休息都算学习，离开电脑也算。一整轮都没碰电脑，番茄钟会自己停掉。正在进行的这一段不受改动影响，新的时长从下一段开始生效。</div>
+        </fieldset>
+
+        <fieldset>
+          <legend>摸鱼提醒</legend>
+          <div class="check"><input type="checkbox" id="slackRemind" /><label for="slackRemind">连续摸鱼太久时，弹窗提醒我该学习了</label></div>
+          <div class="row">
+            <div><label for="slackRemindMinutes">多久提醒一次</label><select id="slackRemindMinutes"></select></div>
+            <div><label for="slackRemindOptions">可以选的时间（分钟）</label><input type="text" id="slackRemindOptions" placeholder="5, 10, 20, 40" /></div>
+          </div>
+          <div class="hint">到时间会弹出一个置顶的小窗口，要自己点掉，<span class="pet-name">小狗</span>也会冒气泡。窗口里可以临时改下一次隔多久（从右边这几个时间里选，用逗号分隔），不改就按左边的。回到学习名单里的应用或离开电脑，计时清零。只提醒你自己，不会通知搭子。</div>
+        </fieldset>
+
+        <fieldset>
+          <legend>计划和复盘</legend>
+          <div class="row">
+            <div><label for="planTime">计划提醒时间</label><input type="time" id="planTime" required /></div>
+            <div><label for="reviewTime">复盘提醒时间</label><input type="time" id="reviewTime" required /></div>
+          </div>
+          <div class="hint">早上到了计划时间，或者当天第一次用电脑时（5 点以后），会弹出「今日计划」；晚上到了复盘时间弹出「今日复盘」。「计划」页里随时可以写。</div>
+        </fieldset>
+
+        <fieldset>
+          <legend>判定规则</legend>
+          <div class="hint">每行一个，或用逗号分隔。网站会匹配子域名（填 bilibili.com 也能匹配 www.bilibili.com）；应用填进程名，不区分大小写（如 Code、WINWORD、steam）。<br />哪个名单都不在的网站和应用<b>也算学习时间</b>，所以摸鱼的要记得加到摸鱼名单里。</div>
+          <details class="rules">
+            <summary>展开修改名单</summary>
+            <label for="studyDomains">学习网站</label><textarea id="studyDomains"></textarea>
+            <label for="slackDomains">摸鱼网站</label><textarea id="slackDomains"></textarea>
+            <label for="studyApps">学习应用</label><textarea id="studyApps"></textarea>
+            <label for="slackApps">摸鱼应用</label><textarea id="slackApps"></textarea>
+            <label for="privateDomains">隐私网站（只显示「隐私模式」，不上报名字）</label><textarea id="privateDomains"></textarea>
+            <label for="privateApps">隐私应用</label><textarea id="privateApps"></textarea>
+            <div class="reset"><button type="button" class="btn small" id="resetRules">恢复默认规则</button></div>
+          </details>
+          <div class="row">
+            <div><label for="idleMinutes">空闲几分钟算「离开」</label><input type="number" id="idleMinutes" min="1" max="60" /></div>
+            <div><label for="slackIdleMinutes">摸鱼时空闲几分钟算</label><input type="number" id="slackIdleMinutes" min="1" max="120" /></div>
+          </div>
+          <div class="hint">在摸鱼网站和应用上常常是在看视频，不动鼠标也正常，所以单独放宽（默认 20 分钟），不能比左边的短。</div>
+        </fieldset>
+
+        <fieldset>
+          <legend>其他</legend>
+          <div class="check"><input type="checkbox" id="openAtLogin" /><label for="openAtLogin">开机自动启动（安装版生效）</label></div>
+          <div class="about">
+            <span id="versionText" class="muted">当前版本 —</span>
+            <button type="button" id="updateBtn" class="btn small">检查更新</button>
+          </div>
+        </fieldset>
+      </form>
+    </section>
+  </main>
+
+  <script src="names.js"></script>
+  <script src="pet-view.js"></script>
+  <script src="journal-view.js"></script>
+  <script src="../reminder.js"></script>
+  <script src="settings.js"></script>
+  <script src="panel.js"></script>
+</body>
+</html>
