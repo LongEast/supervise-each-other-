@@ -334,3 +334,27 @@ test('发版：推 v 开头的 tag 后由 GitHub Actions 打包并发 Release，
   const version = JSON.parse(read('package.json')).version;
   assert.ok(changelogSection(root('CHANGELOG.md'), version), `CHANGELOG.md 里还没有 ${version} 这一节`);
 });
+
+test('配色：颜色都从 tokens.css 取，页面的 CSS 里不写死（不然改配色时会留下一块旧的）', () => {
+  const css = read('renderer/tokens.css');
+  // 四种窗口的页面都引了 tokens.css
+  for (const page of ['pet.html', 'panel.html', 'journal.html', 'remind.html']) {
+    assert.match(read(`renderer/${page}`), /<link rel="stylesheet" href="tokens\.css" \/>/, page);
+  }
+  // 面板窗口打开时先铺的底色要和页面的底色一样
+  const body = /--color-background-body: (#[0-9a-f]{6});/.exec(css);
+  assert.ok(body);
+  assert.ok(read('main.js').includes(`backgroundColor: '${body[1]}',`));
+  // 字体文件和它的授权都在
+  assert.match(css, /url\("fonts\/nunito\.woff2"\)/);
+  for (const f of ['nunito.woff2', 'OFL.txt']) assert.ok(fs.existsSync(path.join(__dirname, '..', 'client', 'renderer', 'fonts', f)), f);
+
+  // 小狗自己的毛色、名牌上的状态灯（pet.css）不算
+  for (const f of ['renderer/journal.css', 'renderer/journal-view.css', 'renderer/remind.html']) {
+    assert.doesNotMatch(read(f), /#[0-9a-fA-F]{3,8}\b|rgba?\(/, f);
+  }
+  const panelCss = read('renderer/panel.css')
+    .split('\n')
+    .filter((line) => !/\.check input::before/.test(line)); // 开关上的白色滑块
+  assert.doesNotMatch(panelCss.join('\n'), /#[0-9a-fA-F]{3,8}\b|rgba?\(/);
+});

@@ -296,7 +296,7 @@ function openPanel(page, opts = {}) {
     minHeight: 560,
     title: 'Buddy Pet',
     autoHideMenuBar: true,
-    backgroundColor: '#faf7f2',
+    backgroundColor: '#faf4ed', // 和 tokens.css 里的 --color-background-body 一致，窗口刚打开时不闪白
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
   });
   panelWin.loadFile(path.join(__dirname, 'renderer', 'panel.html'), { query: go });

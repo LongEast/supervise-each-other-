@@ -1,44 +1,58 @@
-/* 今日计划 / 今日复盘 / 查看 TA 的计划：配色、字体、圆角沿用 settings.html */
+/* 今日计划 / 今日复盘 / 查看 TA 的计划：颜色、字号、圆角取自 tokens.css，和面板是同一套 */
 * { box-sizing: border-box; }
-body { margin: 0; font-family: "Microsoft YaHei UI", "Segoe UI", "PingFang SC", system-ui, sans-serif; background: #faf7f2; color: #2e2a26; font-size: 13px; }
-main { padding: 20px 24px 24px; }
-h1 { font-size: 18px; margin: 0 0 4px; }
-.sub { color: #8b847c; margin: 0 0 14px; }
+body { margin: 0; font-family: var(--font-family-body); background: var(--color-background-body); color: var(--color-text-primary); font-size: var(--font-size-base); line-height: 1.4286; -webkit-font-smoothing: antialiased; }
+main { padding: var(--spacing-5) var(--spacing-6) var(--spacing-6); }
+h1 { font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); line-height: 1.4; margin: 0 0 4px; }
+.sub { color: var(--color-text-secondary); font-size: var(--font-size-sm); line-height: 1.6667; margin: 0 0 var(--spacing-4); }
 .hidden { display: none !important; }
 
-.card { border: 1px solid #e6dfd6; border-radius: 12px; background: #fff; padding: 6px 14px; margin-bottom: 10px; }
-.item { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid #f3ede5; flex-wrap: wrap; }
+.card { border: 1px solid var(--color-border); border-radius: var(--radius-container); background: var(--color-background-card); padding: 6px var(--spacing-4); margin-bottom: var(--spacing-3); }
+.item { display: flex; align-items: center; gap: var(--spacing-2); padding: var(--spacing-2) 0; border-bottom: 1px solid var(--color-border); flex-wrap: wrap; }
 .item:last-child { border-bottom: 0; }
-.item .num { color: #8b847c; width: 18px; text-align: right; flex: none; }
+.item .num { color: var(--color-text-secondary); width: 18px; text-align: right; font-variant-numeric: tabular-nums; flex: none; }
 .item .text { flex: 1; min-width: 0; word-break: break-all; }
 .item input[type=text] { flex: 1; min-width: 0; }
-.item input[type=checkbox] { width: 16px; height: 16px; margin: 0 1px; accent-color: #4c9a6a; flex: none; cursor: pointer; }
-.item.done input[type=text] { color: #8b847c; text-decoration: line-through; }
+.item.done input[type=text] { color: var(--color-text-disabled); text-decoration: line-through; }
 /* 原因单独占一行（选择器要比上面的 input[type=text] 更具体，否则会被挤到同一行） */
 .item input[type=text].reason { flex: 1 0 100%; }
 
+/* 勾选框：圆角方块，勾上是黑底白勾（和面板的一样） */
+input[type=checkbox] { appearance: none; width: 16px; height: 16px; margin: 0 1px; flex: none; border: 1.5px solid var(--color-control-border); border-radius: 5px; background: var(--color-background-surface); display: inline-grid; place-content: center; cursor: pointer; transition: background-color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard); }
+input[type=checkbox]::before { content: ""; width: 9px; height: 5px; border-left: 2px solid var(--color-on-accent); border-bottom: 2px solid var(--color-on-accent); transform: translateY(-1px) rotate(-45deg) scale(0); transition: transform var(--duration-fast) var(--ease-standard); }
+input[type=checkbox]:hover { border-color: var(--color-accent); }
+input[type=checkbox]:checked { background: var(--color-accent); border-color: var(--color-accent); }
+input[type=checkbox]:checked::before { transform: translateY(-1px) rotate(-45deg) scale(1); }
+
 input[type=text], textarea {
-  width: 100%; font: inherit; color: inherit; border: 1px solid #e0d8ce; border-radius: 8px; padding: 7px 9px; background: #fff; outline: none;
+  width: 100%; font: inherit; color: inherit; border: 1px solid var(--color-border-emphasized); border-radius: var(--radius-element); padding: 0 10px; background: var(--color-background-surface); outline: none;
+  transition: border-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard);
 }
-input[type=text]:focus, textarea:focus { border-color: #e5a96a; }
-input[type=text].err { border-color: #e0703f; background: #fff6f1; }
-textarea { min-height: 60px; resize: vertical; line-height: 1.5; }
-label { display: block; margin: 12px 0 4px; color: #5c554e; }
+input[type=text] { height: var(--size-element-md); }
+input[type=text]::placeholder, textarea::placeholder { color: var(--color-text-disabled); }
+input[type=text]:hover, textarea:hover { border-color: var(--color-control-border); }
+input[type=text]:focus, textarea:focus { border-color: var(--color-accent); box-shadow: inset 0 0 0 1px var(--color-accent); }
+input[type=text].err { border-color: var(--color-error); box-shadow: inset 0 0 0 1px var(--color-error); background: var(--color-error-soft); }
+textarea { min-height: 64px; padding: var(--spacing-2) 10px; resize: vertical; line-height: 1.4286; }
+label { display: block; margin: var(--spacing-3) 0 6px; color: var(--color-text-secondary); font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); }
 
-button { font: inherit; border-radius: 9px; padding: 8px 18px; cursor: pointer; border: 1px solid #2e2a26; background: #2e2a26; color: #fff; }
-button.ghost { background: #fff; color: #2e2a26; border-color: #e0d8ce; }
-button.small { padding: 5px 12px; font-size: 12px; }
-button.x { padding: 2px 7px; border-color: transparent; background: transparent; color: #8b847c; flex: none; }
-button.x:hover { color: #b5532a; }
-button:disabled { opacity: 0.45; cursor: not-allowed; }
+/* 按钮：默认是主按钮（黑底白字），.ghost 是浅灰底 */
+button { font: inherit; font-weight: var(--font-weight-medium); height: var(--size-element-lg); border: 0; border-radius: var(--radius-element); padding: 0 var(--spacing-4); cursor: pointer; background: var(--color-accent); color: var(--color-on-accent); white-space: nowrap; transition: background-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard); }
+button:hover { background: var(--color-accent-hover); }
+button.ghost { background: var(--color-neutral); color: var(--color-text-primary); }
+button.ghost:hover { background: var(--color-overlay-pressed); }
+button.small { height: var(--size-element-sm); padding: 0 10px; font-size: var(--font-size-sm); border-radius: var(--radius-inner); }
+button.x { width: var(--size-element-sm); height: var(--size-element-sm); padding: 0; border-radius: var(--radius-inner); background: transparent; color: var(--color-text-disabled); flex: none; }
+button.x:hover { background: var(--color-overlay-hover); color: var(--color-text-error); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* 完成 / 没完成 */
-.seg { display: flex; flex: none; border: 1px solid #e0d8ce; border-radius: 9px; overflow: hidden; }
-.seg button { border: 0; border-radius: 0; background: #fff; color: #8b847c; padding: 5px 11px; font-size: 12px; white-space: nowrap; }
-.seg button + button { border-left: 1px solid #e0d8ce; }
-.seg button.yes.on { background: #e3f4e9; color: #2f7a4f; font-weight: 700; }
-.seg button.no.on { background: #fde9df; color: #b5532a; font-weight: 700; }
+/* 完成 / 没完成：灰色的槽，选中的那一格是白的 */
+.seg { display: flex; flex: none; gap: 2px; padding: 2px; height: var(--size-element-sm); border-radius: 10px; background: var(--color-neutral); }
+.seg button { height: auto; border-radius: var(--radius-inner); background: transparent; color: var(--color-text-secondary); padding: 0 10px; font-size: var(--font-size-sm); }
+.seg button:hover { background: transparent; color: var(--color-text-primary); }
+.seg button.on { background: var(--color-background-surface); font-weight: var(--font-weight-semibold); box-shadow: var(--shadow-low); }
+.seg button.yes.on { color: var(--study-ink); }
+.seg button.no.on { color: var(--slack-ink); }
 
-.actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 16px; }
-#msg { color: #2f7a4f; }
-#msg.err { color: #b5532a; }
+.actions { display: flex; gap: var(--spacing-2); align-items: center; flex-wrap: wrap; margin-top: var(--spacing-4); }
+#msg { color: var(--color-text-success); font-size: var(--font-size-sm); }
+#msg.err { color: var(--color-text-error); }

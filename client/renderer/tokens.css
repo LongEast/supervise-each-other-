@@ -1,0 +1,121 @@
+/* 所有窗口共用的设计 token。每个页面先引这个文件，再引自己的 CSS；页面的 CSS 里不写死颜色，都从这里取。
+   颜色是 Rosé Pine Dawn 调色板（https://rosepinetheme.com/palette，MIT）：米色的底、灰紫色的字、玫瑰色的主按钮。
+   调色板只管颜色，圆角、间距、字体是我们自己定的。
+   token 的名字（--color-background-body 这些）沿用最早照 Astryx 起的那套，各页面的 CSS 不用跟着改。 */
+@font-face {
+  /* 圆头的拉丁字母和数字（番茄钟的大数字、时长）。中文落到后面的系统字体上。授权见 fonts/OFL.txt */
+  font-family: "Nunito";
+  src: url("fonts/nunito.woff2") format("woff2");
+  font-weight: 200 1000;
+  font-display: swap;
+}
+
+:root {
+  /* ---------- 颜色 ---------- */
+  /* 一层叠一层，body → surface → card → popover：base #faf4ed / surface #fffaf3 / overlay #f2e9e1 */
+  --color-background-body: #faf4ed;
+  --color-background-surface: #fffaf3;
+  --color-background-card: #fffaf3;
+  --color-background-popover: #fffaf3;
+  --color-background-muted: #f2e9e1;
+  --color-background-inverted: #575279;
+  --color-text-primary: #575279;
+  /* 调色板里的 subtle（#797593）放在米色底上只有 4.2:1，小字看着费劲，这里压深了一点 */
+  --color-text-secondary: #68647f;
+  --color-text-disabled: #9893a5;
+  --color-border: #f2e9e1;
+  --color-border-emphasized: #dfdad9;
+  --color-control-border: #cecacd; /* 没勾的勾选框、鼠标移上去的输入框 */
+  /* 主按钮：调色板里的 love（#b4637a）配白字只有 4.0:1，同样压深了一点 */
+  --color-accent: #a35570;
+  --color-accent-hover: #914760;
+  --color-on-accent: #fffaf3;
+  --color-neutral: #f2e9e1;
+  --color-overlay-hover: #f4ede8;
+  --color-overlay-pressed: #dfdad9;
+  --color-track: #dfdad9;
+  --color-shadow: #57527924;
+  --color-shadow-strong: #57527938;
+  --color-success: #286983;
+  --color-success-muted: #d9e8ea;
+  --color-text-success: #286983;
+  --color-error: #b4637a;
+  --color-error-muted: #f3dfe1;
+  --color-error-soft: #fbf0ee; /* 填错了的输入框的底色 */
+  --color-text-error: #a35570;
+  --color-info-muted: #e6e0ee;
+  --color-text-info: #6f5a8c;
+
+  /* 学习 / 摸鱼是两组数据：松绿（foam / pine）和金色（gold）；浅底和深字是同一个颜色调出来的 */
+  --study: #56949f;
+  --study-soft: #dcebeb;
+  --study-ink: #286983;
+  --slack: #ea9d34;
+  --slack-soft: #fbead0;
+  --slack-ink: #8a5408;
+  --tomato: #b4637a;
+
+  /* 番茄钟那一大块（面板「今天」页）和统计页的第一格：整页唯一一块有颜色的底 */
+  --color-hero: #f6ddd6;
+  --color-on-hero: #575279;
+  --color-on-hero-muted: #605b7c;
+  --color-hero-track: #5752791f;
+  --color-hero-focus: #b4637a; /* 进度条：专注时 */
+  --color-hero-break: #286983; /* 进度条：休息时 */
+  --color-hero-button: #a35570;
+  --color-hero-button-hover: #914760;
+  --color-on-hero-button: #fffaf3;
+  --color-hero-ghost: #fffaf3b3;
+  --color-hero-ghost-hover: #fffaf3;
+
+  /* 小狗脚下的名牌：深底浅字 */
+  --color-tag: #575279e6;
+  --color-on-tag: #faf4ed;
+
+  /* 字：14px 起，一级 1.2 倍 */
+  --font-family-body: "Nunito", "Microsoft YaHei UI", "Segoe UI", "PingFang SC", system-ui, sans-serif;
+  --font-size-xs: 0.625rem;
+  --font-size-sm: 0.75rem;
+  --font-size-base: 0.875rem;
+  --font-size-lg: 1.0625rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 1.8125rem;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+
+  /* 间距：4px 一格 */
+  --spacing-1: 0.25rem;
+  --spacing-2: 0.5rem;
+  --spacing-3: 0.75rem;
+  --spacing-4: 1rem;
+  --spacing-5: 1.25rem;
+  --spacing-6: 1.5rem;
+  --spacing-8: 2rem;
+
+  /* 控件的高度（按钮、输入框、分段按钮都用这三档） */
+  --size-element-sm: 28px;
+  --size-element-md: 32px;
+  --size-element-lg: 36px;
+
+  /* 圆角：控件 14，卡片 22，徽章是胶囊 */
+  --radius-inner: 10px;
+  --radius-element: 14px;
+  --radius-container: 22px;
+  --radius-full: 9999px;
+
+  /* 阴影：默认是平的，只有浮起来的东西才有。颜色带一点正文的灰紫，不用纯黑 */
+  --shadow-low: 0 1px 2px var(--color-shadow);
+  --shadow-med: 0 6px 20px var(--color-shadow), 0 1px 3px var(--color-shadow);
+  --shadow-high: 0 16px 40px var(--color-shadow-strong), 0 2px 6px var(--color-shadow);
+
+  /* 动效 */
+  --duration-fast: 175ms;
+  --ease-standard: cubic-bezier(0.24, 1, 0.4, 1);
+}
+
+/* 键盘焦点：一圈 2px 的 accent 色 */
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0.01ms !important; }
+}

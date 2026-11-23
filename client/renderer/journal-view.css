@@ -1,9 +1,9 @@
-/* 只读的计划 / 复盘（「查看 TA 的计划」窗口和设置页的历史共用） */
-.jv-item { display: flex; gap: 8px; padding: 4px 0; align-items: baseline; }
-.jv-mark { flex: none; width: 16px; text-align: center; font-weight: 700; color: #b9b1a7; }
-.jv-mark.yes { color: #4c9a6a; }
-.jv-mark.no { color: #e0703f; }
+/* 只读的计划 / 复盘（「查看 TA 的计划」窗口和设置页的历史共用）。颜色取自 tokens.css */
+.jv-item { display: flex; gap: var(--spacing-2); padding: 4px 0; align-items: baseline; }
+.jv-mark { flex: none; width: 16px; text-align: center; font-weight: var(--font-weight-semibold); color: var(--color-text-disabled); }
+.jv-mark.yes { color: var(--study); }
+.jv-mark.no { color: var(--slack); }
 .jv-text { word-break: break-all; }
-.jv-reason, .jv-improve { color: #8b847c; font-size: 12px; word-break: break-all; }
-.jv-improve { margin-top: 6px; padding-top: 6px; border-top: 1px dashed #e6dfd6; }
-.jv-empty { color: #8b847c; padding: 4px 0; }
+.jv-reason, .jv-improve { color: var(--color-text-secondary); font-size: var(--font-size-sm); line-height: 1.6667; word-break: break-all; }
+.jv-improve { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--color-border); }
+.jv-empty { color: var(--color-text-secondary); padding: 4px 0; }

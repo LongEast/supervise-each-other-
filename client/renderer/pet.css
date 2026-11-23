@@ -4,12 +4,10 @@
   --belly: #fff1dc;
   --ink: #3a2a20;
   --blush: #f7a7a0;
-  --study: #4c9a6a;
-  --slack: #e0703f;
-  --neutral: #8a8f98;
-  --card-bg: rgba(255, 252, 247, 0.97);
-  --card-ink: #2e2a26;
-  --muted: #8b847c;
+  /* 卡片 / 菜单 / 气泡 / 名牌的颜色、圆角取自 tokens.css，和面板是同一套；上面这几个只管小狗自己的毛色 */
+  --card-bg: var(--color-background-popover);
+  --card-ink: var(--color-text-primary);
+  --muted: var(--color-text-secondary);
   /* 小狗的大小，主进程给。只缩放小狗本身，卡片 / 菜单 / 名牌不变；数字要和 pet-geometry.js 里的一致 */
   --pet-scale: 1;
   --pet-w: calc(150px * var(--pet-scale));
@@ -22,7 +20,8 @@ html, body {
   height: 100%;
   background: transparent;
   overflow: hidden;
-  font-family: "Microsoft YaHei UI", "Segoe UI", "PingFang SC", system-ui, sans-serif;
+  font-family: var(--font-family-body);
+  -webkit-font-smoothing: antialiased;
   user-select: none;
 }
 #stage { position: relative; width: 100%; height: 100%; }
@@ -147,28 +146,29 @@ body.dragging #pet, body.dragging .nametag { cursor: grabbing; }
   left: calc(50% - var(--pet-w) / 2);
   top: min(0px, calc((var(--pet-scale) - 1) * 40px));
   padding: 2px 8px 2px 6px;
-  border-radius: 999px;
-  background: rgba(209, 73, 56, 0.94);
+  border-radius: var(--radius-full);
+  background: var(--color-error);
   color: #fff;
   font-size: 11.5px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   font-variant-numeric: tabular-nums;
   line-height: 1.4;
   white-space: nowrap;
   pointer-events: none;
 }
-.pomo.break { background: rgba(62, 138, 93, 0.94); }
-.pomo.wait { background: rgba(92, 85, 78, 0.94); } /* 休息结束，等着点「重新开始」 */
+.pomo.break { background: var(--color-success); }
+.pomo.wait { background: var(--color-text-secondary); } /* 休息结束，等着点「重新开始」 */
 
 /* ---------------- 名牌（可拖动） ---------------- */
 .nametag {
   cursor: move;
   margin-top: -2px;
   padding: 3px 10px;
-  border-radius: 999px;
-  background: rgba(46, 42, 38, 0.82);
-  color: #fff;
-  font-size: 12px;
+  border-radius: var(--radius-full);
+  background: var(--color-tag);
+  color: var(--color-on-tag);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -177,14 +177,19 @@ body.dragging #pet, body.dragging .nametag { cursor: grabbing; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.nametag.me { background: rgba(122, 78, 38, 0.92); } /* 小狗演自己时名牌换个颜色，一眼能分清看的是谁 */
-.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--neutral); flex: none; }
-.dot.study { background: #6fd394; }
-.dot.slack { background: #ff9a62; }
+/* 小狗演自己时名牌反过来（浅底深字），一眼能分清看的是谁 */
+.nametag.me { background: var(--color-background-popover); color: var(--color-text-primary); box-shadow: inset 0 0 0 1px var(--color-control-border); }
+/* 名牌上的状态灯：名牌是深底，所以用固定的亮色，不取 tokens.css 里给浅底用的那几个 */
+.dot { width: 7px; height: 7px; border-radius: 50%; background: #8c939b; flex: none; }
+.dot.study { background: #64af4c; }
+.dot.slack { background: #ff9a3d; }
 .dot.away, .dot.paused { background: #9aa6c4; }
-.dot.offline { background: #5c5c5c; }
+.dot.offline { background: #6b6b6b; }
+.nametag.me .dot.study { background: var(--study); }
+.nametag.me .dot.slack { background: var(--slack); }
 
 /* ---------------- 卡片 / 菜单 / 气泡 ---------------- */
+/* 浮在桌面上的东西才有阴影（面板里的卡片是平的） */
 .card, .menu, .bubble, .detail {
   position: absolute;
   left: 50%;
@@ -193,50 +198,50 @@ body.dragging #pet, body.dragging .nametag { cursor: grabbing; }
   width: 248px;
   background: var(--card-bg);
   color: var(--card-ink);
-  border-radius: 14px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  border-radius: var(--radius-container);
+  box-shadow: var(--shadow-med), 0 0 0 1px var(--color-border);
   padding: 10px 12px;
   font-size: 12.5px;
-  animation: pop 0.18s ease-out;
+  animation: pop var(--duration-fast) var(--ease-standard);
   z-index: 2; /* 盖在番茄钟倒计时上面 */
 }
 @keyframes pop { from { opacity: 0; transform: translateX(-50%) translateY(6px); } }
 
 .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
-.card-name { font-weight: 700; font-size: 14px; }
-.badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #eee; color: #555; }
-.badge.study { background: #e3f4e9; color: var(--study); }
-.badge.slack { background: #fde9df; color: var(--slack); }
-.badge.away, .badge.paused { background: #e8ecf5; color: #5f6f94; }
+.card-name { font-weight: var(--font-weight-semibold); font-size: var(--font-size-base); }
+.badge { font-size: 11px; font-weight: var(--font-weight-semibold); padding: 2px 8px; border-radius: var(--radius-full); background: var(--color-neutral); color: var(--color-text-secondary); }
+.badge.study { background: var(--study-soft); color: var(--study-ink); }
+.badge.slack { background: var(--slack-soft); color: var(--slack-ink); }
+.badge.away, .badge.paused { background: var(--color-info-muted); color: var(--color-text-info); }
 .card-what { color: var(--card-ink); margin-bottom: 6px; word-break: break-all; }
-.card-streak { color: var(--slack); font-weight: 600; margin-bottom: 6px; }
-.card-pomo { color: #c2452f; font-weight: 600; margin-bottom: 6px; }
-.card-pomo.break { color: var(--study); }
-.card-pomo.wait { color: #8b847c; }
+.card-streak { color: var(--slack-ink); font-weight: var(--font-weight-semibold); margin-bottom: 6px; }
+.card-pomo { color: var(--color-text-error); font-weight: var(--font-weight-semibold); margin-bottom: 6px; }
+.card-pomo.break { color: var(--color-text-success); }
+.card-pomo.wait { color: var(--muted); }
 /* 今日统计：名字 | 进度条 | 学习 | 摸鱼，一人一行 */
 .stats { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 3px 8px; font-size: 11.5px; }
 .stats-head { color: var(--muted); font-size: 10.5px; }
 .stats-head.num, .stats-num { text-align: right; }
 .stats-who { max-width: 5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stats-head.tip { grid-column: 1 / 3; }
-.stats-num { font-variant-numeric: tabular-nums; font-weight: 600; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; }
+.stats-num { font-variant-numeric: tabular-nums; font-weight: var(--font-weight-semibold); cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; }
 .stats-num:hover { text-decoration-style: solid; }
-.stats-num.study { color: var(--study); }
-.stats-num.slack { color: var(--slack); }
-.bar { display: flex; height: 6px; border-radius: 3px; background: #eee; overflow: hidden; }
+.stats-num.study { color: var(--study-ink); }
+.stats-num.slack { color: var(--slack-ink); }
+.bar { display: flex; height: 6px; border-radius: var(--radius-full); background: var(--color-neutral); overflow: hidden; }
 .seg.study { background: var(--study); }
 .seg.slack { background: var(--slack); }
-.card-plan { margin-top: 6px; padding-top: 6px; border-top: 1px dashed #e6dfd6; color: var(--muted); }
-.card-plan.has { color: var(--study); font-weight: 600; }
-.card-hint { margin-top: 6px; color: var(--muted); font-size: 11px; text-align: center; }
+.card-plan { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--color-border); color: var(--muted); }
+.card-plan.has { color: var(--study-ink); font-weight: var(--font-weight-semibold); }
+.card-hint { margin-top: 6px; color: var(--color-text-disabled); font-size: 11px; text-align: center; }
 
 /* 时长明细：和卡片在同一个位置，至少和卡片下半截一样高，点完时长鼠标还在面板里 */
 .detail { min-height: 120px; }
-.detail-head { display: flex; align-items: baseline; margin-bottom: 8px; font-weight: 700; font-size: 13px; white-space: nowrap; }
+.detail-head { display: flex; align-items: baseline; margin-bottom: 8px; font-weight: var(--font-weight-semibold); font-size: 13px; white-space: nowrap; }
 .detail-who { overflow: hidden; text-overflow: ellipsis; }
 .detail-total { flex: none; white-space: pre; }
-.detail-total.study { color: var(--study); }
-.detail-total.slack { color: var(--slack); }
+.detail-total.study { color: var(--study-ink); }
+.detail-total.slack { color: var(--slack-ink); }
 .detail-back { flex: none; margin-left: auto; padding-left: 8px; color: var(--muted); text-decoration: none; font-weight: 400; font-size: 11.5px; }
 .detail-back:hover { color: var(--card-ink); text-decoration: underline; }
 .detail-list { display: grid; grid-template-columns: minmax(0, 1fr) 56px auto; align-items: center; gap: 4px 8px; font-size: 12px; }
@@ -247,41 +252,47 @@ body.dragging #pet, body.dragging .nametag { cursor: grabbing; }
 .detail-note { color: var(--muted); font-size: 11.5px; line-height: 1.5; }
 
 .menu-title { font-size: 13px; margin-bottom: 8px; }
+.menu-title b { font-weight: var(--font-weight-semibold); }
 .presets { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
 .menu button {
   font: inherit;
   font-size: 12px;
-  border: 1px solid #e6dfd6;
-  background: #fff;
+  font-weight: var(--font-weight-medium);
+  height: var(--size-element-sm);
+  border: 0;
+  background: var(--color-neutral);
   color: var(--card-ink);
-  border-radius: 9px;
-  padding: 6px 4px;
+  border-radius: var(--radius-inner);
+  padding: 0 4px;
   cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard);
 }
-.menu button:hover:not(:disabled) { background: #fff4e8; border-color: #f2c38b; }
-.menu button:disabled { opacity: 0.45; cursor: not-allowed; }
+.menu button:hover:not(:disabled) { background: var(--color-overlay-pressed); }
+.menu button:disabled { opacity: 0.4; cursor: not-allowed; }
 .custom { display: flex; gap: 6px; }
 .custom input {
   flex: 1;
   min-width: 0;
+  height: var(--size-element-sm);
   font: inherit;
   font-size: 12px;
-  border: 1px solid #e6dfd6;
-  border-radius: 9px;
-  padding: 6px 8px;
+  border: 1px solid var(--color-border-emphasized);
+  border-radius: var(--radius-inner);
+  padding: 0 8px;
   outline: none;
   user-select: text;
 }
-.custom input:focus { border-color: #f2c38b; }
-.custom button { padding: 6px 10px; background: #2e2a26; color: #fff; border-color: #2e2a26; }
-.custom button:hover:not(:disabled) { background: #000; color: #fff; }
+.custom input::placeholder { color: var(--color-text-disabled); }
+.custom input:focus { border-color: var(--color-accent); box-shadow: inset 0 0 0 1px var(--color-accent); }
+.custom button { padding: 0 10px; background: var(--color-accent); color: var(--color-on-accent); }
+.custom button:hover:not(:disabled) { background: var(--color-accent-hover); }
 .menu-msg { min-height: 16px; margin-top: 6px; font-size: 11.5px; color: var(--muted); }
-.menu-msg.ok { color: var(--study); }
-.menu-msg.err { color: var(--slack); }
-.menu-link { display: block; margin: 2px 0 8px; padding: 6px 8px; border-radius: 9px; background: #f6f1ea; color: var(--card-ink); text-decoration: none; font-size: 12px; text-align: center; }
-.menu-link:hover { background: #fff4e8; }
+.menu-msg.ok { color: var(--color-text-success); }
+.menu-msg.err { color: var(--color-text-error); }
+.menu-link { display: block; margin: 2px 0 8px; padding: 6px 8px; border-radius: var(--radius-inner); background: var(--color-neutral); color: var(--card-ink); text-decoration: none; font-size: 12px; font-weight: var(--font-weight-medium); text-align: center; transition: background-color var(--duration-fast) var(--ease-standard); }
+.menu-link:hover { background: var(--color-overlay-pressed); }
 .menu-foot { display: flex; justify-content: space-between; margin-top: 2px; font-size: 11px; }
-.menu-foot a { color: var(--muted); text-decoration: none; }
+.menu-foot a { color: var(--muted); text-decoration: none; border-radius: 4px; }
 .menu-foot a:hover { color: var(--card-ink); text-decoration: underline; }
 
 .bubble { font-size: 13px; line-height: 1.45; cursor: pointer; }
@@ -295,6 +306,6 @@ body.dragging #pet, body.dragging .nametag { cursor: grabbing; }
   height: 14px;
   background: var(--card-bg);
 }
-.bubble b { color: var(--slack); }
+.bubble b { color: var(--slack-ink); font-weight: var(--font-weight-semibold); }
 .bubble .sub { display: block; margin-top: 3px; font-size: 11px; color: var(--muted); }
-.bubble.self { border: 1.5px solid #f6c9b0; }
+.bubble.self { border: 1.5px solid var(--slack); }

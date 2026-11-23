@@ -3,12 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <style>
-    body { margin: 0; padding: 12px 14px; width: 230px; font: 13px "Microsoft YaHei UI", "Segoe UI", system-ui, sans-serif; color: #2e2a26; background: #faf7f2; }
-    .t { font-weight: 700; margin-bottom: 6px; }
-    #s { padding: 6px 10px; border-radius: 8px; background: #eee; }
-    #s.ok { background: #e3f4e9; color: #2f7a4f; }
-    #s.bad { background: #fde9df; color: #b5532a; }
-    p { color: #8b847c; font-size: 11.5px; margin: 8px 0 0; line-height: 1.5; }
+    /* 颜色、圆角和桌面端一致（client/renderer/tokens.css）。插件单独打包，引不到那个文件，所以直接写数值 */
+    body { margin: 0; padding: 14px 16px; width: 230px; font: 14px/1.4286 "Microsoft YaHei UI", "Segoe UI", system-ui, sans-serif; color: #575279; background: #fffaf3; }
+    .t { font-weight: 600; margin-bottom: 8px; }
+    #s { padding: 6px 10px; border-radius: 14px; background: #f2e9e1; color: #68647f; font-weight: 500; }
+    #s.ok { background: #dcebeb; color: #286983; }
+    #s.bad { background: #fbead0; color: #8a5408; }
+    p { color: #68647f; font-size: 12px; margin: 10px 0 0; line-height: 1.6667; }
+    p b { font-weight: 600; color: #575279; }
   </style>
 </head>
 <body>
