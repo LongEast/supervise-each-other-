@@ -311,7 +311,18 @@ test('面板：一个窗口四页（今天 / 统计 / 计划 / 设置）；常�
   }
   assert.ok(html.indexOf('<script src="settings.js">') < html.indexOf('<script src="panel.js">'));
   assert.match(js, /^\(\(\) => \{$/m);
-  assert.match(html, /<button type="submit" form="form"/); // 保存按钮在页面右上角，不在表单里面
+  assert.match(html, /<button type="submit" form="form"/); // 「连接」按钮在页面右上角，不在表单里面
+  // 设置改完自动保存，页面下面浮一条「已保存」；右上角的按钮只管（重新）连接
+  const settingsJs = read('renderer/settings.js');
+  assert.match(settingsJs, /\$\('form'\)\.addEventListener\('change', \(\) => save\(\)\);/);
+  assert.match(settingsJs, /toast\(reconnect \? '已保存，正在连接…' : '已保存 ✓'\);/);
+  assert.match(settingsJs, /if \(JSON\.stringify\(next\) === lastSaved && !reconnect\) return /); // 没变就不存第二遍
+  assert.match(settingsJs, /const connReady = CONN\.every\(/); // 连接的四项没填齐时不动原来存的
+  assert.match(html, /<div id="saved" class="toast" role="status"><\/div>/);
+  assert.match(read('renderer/panel.css'), /\.toast \{[^}]*position: fixed;[^}]*pointer-events: none;/);
+  assert.doesNotMatch(html, /保存并连接/);
+  // 改一项存一次，所以保存时不能每次都重连：连接的四项变了，或者点了「连接」按钮才重连
+  assert.match(main, /if \(newConn !== oldConn \|\| next\.reconnect\) \{/);
 
   // 托盘菜单：状态、打开面板、番茄钟、暂停分享、隐藏 / 显示（小狗藏起来时只能从这里叫出来）、检查更新、退出
   const tray = main.slice(main.indexOf('function updateTray()'), main.indexOf('function trayImage()'));

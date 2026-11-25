@@ -172,10 +172,9 @@
       <header class="head">
         <h1>设置</h1>
         <span class="grow"></span>
-        <span id="saved"></span>
-        <button type="submit" form="form" class="btn solid">保存并连接</button>
+        <button type="submit" form="form" id="connectBtn" class="btn solid">连接</button>
       </header>
-      <p class="note">你和搭子填<b>同一个服务器、房间号和密码</b>，昵称各自不同。带输入框的设置改完要点右上角的「保存并连接」才生效。</p>
+      <p class="note">你和搭子填<b>同一个服务器、房间号和密码</b>，昵称各自不同。设置改完自动保存，不用另外点保存；连接的四项填齐就会自己连上。</p>
       <div class="status">
         <span id="connPill" class="pill">服务器：—</span>
         <span id="friendPill" class="pill">搭子：—</span>
@@ -210,7 +209,7 @@
 
         <fieldset>
           <legend>桌面上的<span class="pet-name">小狗</span></legend>
-          <div class="hint">这三项点了马上生效，不用保存。在它身上滚滚轮也能调大小，右键它也能换。</div>
+          <div class="hint">在它身上滚滚轮也能调大小，右键它也能换。</div>
           <label>大小</label>
           <div id="petScaleSeg" class="seg wide"></div>
           <label>显示谁的状态</label>
@@ -270,6 +269,8 @@
           </fieldset>
         </div>
       </form>
+      <!-- 自动保存的提示：浮在页面下面，过一会儿自己消失 -->
+      <div id="saved" class="toast" role="status"></div>
     </section>
   </main>
 

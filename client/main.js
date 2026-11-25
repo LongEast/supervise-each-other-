@@ -875,8 +875,9 @@ ipcMain.handle('config:save', (_e, next) => {
   if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: config.openAtLogin });
   syncRest(); // 正在休息时改了「休息算不算学习」，马上生效；时长从下一段开始生效
   updateTray(); // 菜单上写着番茄钟的时长；严格模式开着才有「暂停 5 分钟」
+  // 设置是改一项存一次的：只有连接的四项变了才重连；设置页右上角的「连接」按钮（next.reconnect）是手动重连
   const newConn = [config.serverUrl, config.room, config.secret, config.name].join('|');
-  if (newConn !== oldConn || relay.state !== 'online') {
+  if (newConn !== oldConn || next.reconnect) {
     friend = null;
     relay.connect(config);
   }
