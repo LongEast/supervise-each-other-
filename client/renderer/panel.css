@@ -34,8 +34,9 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round
 .side-btn.paused { background: var(--color-accent); color: var(--color-on-accent); }
 
 /* ---------- 页面骨架 ---------- */
-main { flex: 1; min-width: 0; overflow-y: auto; }
-.page { padding: var(--spacing-5) var(--spacing-6) var(--spacing-5) var(--spacing-2); display: flex; flex-direction: column; gap: var(--spacing-3); min-height: 100%; }
+/* 滚动条的位置一直留着（12px）：设置页要滚、别的页不用滚，不留的话各页的右边就不在一条线上。右边的留白 = 12px 的 padding + 这 12px */
+main { flex: 1; min-width: 0; overflow-y: auto; scrollbar-gutter: stable; }
+.page { padding: var(--spacing-5) var(--spacing-3) var(--spacing-5) var(--spacing-2); display: flex; flex-direction: column; gap: var(--spacing-3); min-height: 100%; }
 .head { display: flex; align-items: center; gap: var(--spacing-3); min-height: var(--size-element-lg); }
 .card { border: 1px solid var(--color-border); border-radius: var(--radius-container); background: var(--color-background-card); }
 .card.pad { padding: var(--spacing-4) var(--spacing-5); }
@@ -135,7 +136,7 @@ input[type=checkbox]:disabled { opacity: 0.5; cursor: default; }
 
 .week-grid { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: var(--spacing-3); }
 #statsBody { display: flex; flex-direction: column; gap: var(--spacing-3); }
-.day-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--spacing-3); align-items: start; }
+.day-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--spacing-3); }
 .chart-card { padding: var(--spacing-4) var(--spacing-5); display: flex; flex-direction: column; gap: var(--spacing-3); min-width: 0; }
 .chart-head { display: flex; align-items: center; gap: var(--spacing-3); }
 .chart-head b { font-size: var(--font-size-base); }
@@ -186,7 +187,9 @@ input[type=checkbox]:disabled { opacity: 0.5; cursor: default; }
 .list-card .todo, .list-card .top-row { min-height: 28px; }
 
 /* ---------- 计划 ---------- */
-.plan-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 4fr); gap: var(--spacing-3); align-items: start; }
+/* 左右两边一样高：哪边矮，哪边最下面那张卡片就拉长 */
+.plan-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 4fr); gap: var(--spacing-3); }
+.plan-grid .col .card:last-child { flex: 1; }
 .plan-row { display: flex; align-items: center; gap: var(--spacing-2); min-height: var(--size-element-lg); }
 .plan-row .num { width: 16px; text-align: right; color: var(--color-text-secondary); font-variant-numeric: tabular-nums; flex: none; }
 /* 一行就是一个输入框：平时没有边，鼠标放上去变灰，点进去才出一圈线 */
@@ -230,10 +233,14 @@ details.day .who { font-weight: var(--font-weight-semibold); margin-bottom: 2px;
 details.day .cols button { margin-top: var(--spacing-2); height: var(--size-element-sm); font: inherit; font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); border: 0; border-radius: var(--radius-inner); background: var(--color-neutral); color: var(--color-text-primary); padding: 0 10px; }
 details.day .cols button:hover { background: var(--color-overlay-pressed); }
 
-/* ---------- 设置：沿用原来设置页的表单，排成两栏卡片 ---------- */
+/* ---------- 设置：沿用原来设置页的表单，排成两栏的格子 ---------- */
+/* 一行两张卡片，上下边都对齐（矮的那张拉到和同一行的一样高）；卡片在 panel.html 里按高度差不多的配成一行 */
 .status { display: flex; gap: var(--spacing-2); flex-wrap: wrap; }
-.settings { columns: 2; column-gap: var(--spacing-3); }
-.settings fieldset { break-inside: avoid; border: 1px solid var(--color-border); border-radius: var(--radius-container); background: var(--color-background-card); padding: var(--spacing-4) var(--spacing-5); margin: 0 0 var(--spacing-3); min-width: 0; }
+.settings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--spacing-3); }
+.settings fieldset { border: 1px solid var(--color-border); border-radius: var(--radius-container); background: var(--color-background-card); padding: var(--spacing-4) var(--spacing-5); margin: 0; min-width: 0; }
+.settings .col fieldset:last-child { flex: 1; }
+/* 名单展开以后那张卡片会长很多，旁边那张就不跟着拉了 */
+.settings fieldset:has(+ fieldset details.rules[open]) { align-self: start; }
 .settings legend { float: left; width: 100%; padding: 0; margin-bottom: 4px; font-size: var(--font-size-base); font-weight: var(--font-weight-semibold); }
 .settings legend + * { clear: both; }
 .settings label { display: block; margin: var(--spacing-3) 0 6px; color: var(--color-text-secondary); font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); }

@@ -183,6 +183,8 @@
       </div>
 
       <form id="form" class="settings">
+        <!-- 两栏的格子，一行两张卡片，同一行的上下边对齐（矮的那张拉到一样高），所以按高度差不多的配对。
+             最后一行右边是两张矮的叠在一起 -->
         <fieldset>
           <legend>连接</legend>
           <label for="serverUrl">服务器地址</label>
@@ -197,27 +199,6 @@
         </fieldset>
 
         <fieldset>
-          <legend>桌面上的<span class="pet-name">小狗</span></legend>
-          <div class="hint">这三项点了马上生效，不用保存。在它身上滚滚轮也能调大小，右键它也能换。</div>
-          <label>大小</label>
-          <div id="petScaleSeg" class="seg wide"></div>
-          <label>显示谁的状态</label>
-          <div id="petViewSeg" class="seg wide"></div>
-          <label>形象</label>
-          <div id="petSkinSeg" class="seg wide"></div>
-        </fieldset>
-
-        <fieldset>
-          <legend>番茄钟</legend>
-          <div class="row">
-            <div><label for="pomodoroFocusMinutes">每次专注多少分钟</label><input type="number" id="pomodoroFocusMinutes" min="1" max="180" /></div>
-            <div><label for="pomodoroBreakMinutes">每次休息多少分钟</label><input type="number" id="pomodoroBreakMinutes" min="1" max="60" /></div>
-          </div>
-          <div class="check"><input type="checkbox" id="pomodoroBreakCounts" /><label for="pomodoroBreakCounts">休息时间也计入学习时间</label></div>
-          <div class="hint">在「今天」页或者右键<span class="pet-name">小狗</span>开始，专注和休息轮着来，直到点「结束」；<span class="pet-name">小狗</span>头上有倒计时。到休息时间只冒气泡；休息结束时会弹窗，点「重新开始番茄钟」下一轮才开始计时，也可以点小箭头「再休息一会」，或者「恢复默认模式」结束番茄钟。<br />休息时摸鱼不算摸鱼时间，也不会弹摸鱼提醒。不勾上面这项的话休息时间也不算学习时间（休息时还在接着学的照常算）；勾上就整段休息都算学习，离开电脑也算。一整轮都没碰电脑，番茄钟会自己停掉。正在进行的这一段不受改动影响，新的时长从下一段开始生效。</div>
-        </fieldset>
-
-        <fieldset>
           <legend>摸鱼提醒</legend>
           <div class="check"><input type="checkbox" id="slackRemind" /><label for="slackRemind">连续摸鱼太久时，弹窗提醒我该学习了</label></div>
           <div class="row">
@@ -228,12 +209,14 @@
         </fieldset>
 
         <fieldset>
-          <legend>计划和复盘</legend>
-          <div class="row">
-            <div><label for="planTime">计划提醒时间</label><input type="time" id="planTime" required /></div>
-            <div><label for="reviewTime">复盘提醒时间</label><input type="time" id="reviewTime" required /></div>
-          </div>
-          <div class="hint">早上到了计划时间，或者当天第一次用电脑时（5 点以后），会弹出「今日计划」；晚上到了复盘时间弹出「今日复盘」。「计划」页里随时可以写。</div>
+          <legend>桌面上的<span class="pet-name">小狗</span></legend>
+          <div class="hint">这三项点了马上生效，不用保存。在它身上滚滚轮也能调大小，右键它也能换。</div>
+          <label>大小</label>
+          <div id="petScaleSeg" class="seg wide"></div>
+          <label>显示谁的状态</label>
+          <div id="petViewSeg" class="seg wide"></div>
+          <label>形象</label>
+          <div id="petSkinSeg" class="seg wide"></div>
         </fieldset>
 
         <fieldset>
@@ -257,13 +240,34 @@
         </fieldset>
 
         <fieldset>
-          <legend>其他</legend>
-          <div class="check"><input type="checkbox" id="openAtLogin" /><label for="openAtLogin">开机自动启动（安装版生效）</label></div>
-          <div class="about">
-            <span id="versionText" class="muted">当前版本 —</span>
-            <button type="button" id="updateBtn" class="btn small">检查更新</button>
+          <legend>番茄钟</legend>
+          <div class="row">
+            <div><label for="pomodoroFocusMinutes">每次专注多少分钟</label><input type="number" id="pomodoroFocusMinutes" min="1" max="180" /></div>
+            <div><label for="pomodoroBreakMinutes">每次休息多少分钟</label><input type="number" id="pomodoroBreakMinutes" min="1" max="60" /></div>
           </div>
+          <div class="check"><input type="checkbox" id="pomodoroBreakCounts" /><label for="pomodoroBreakCounts">休息时间也计入学习时间</label></div>
+          <div class="hint">在「今天」页或者右键<span class="pet-name">小狗</span>开始，专注和休息轮着来，直到点「结束」；<span class="pet-name">小狗</span>头上有倒计时。到休息时间只冒气泡；休息结束时会弹窗，点「重新开始番茄钟」下一轮才开始计时，也可以点小箭头「再休息一会」，或者「恢复默认模式」结束番茄钟。<br />休息时摸鱼不算摸鱼时间，也不会弹摸鱼提醒。不勾上面这项的话休息时间也不算学习时间（休息时还在接着学的照常算）；勾上就整段休息都算学习，离开电脑也算。一整轮都没碰电脑，番茄钟会自己停掉。正在进行的这一段不受改动影响，新的时长从下一段开始生效。</div>
         </fieldset>
+
+        <div class="col">
+          <fieldset>
+            <legend>计划和复盘</legend>
+            <div class="row">
+              <div><label for="planTime">计划提醒时间</label><input type="time" id="planTime" required /></div>
+              <div><label for="reviewTime">复盘提醒时间</label><input type="time" id="reviewTime" required /></div>
+            </div>
+            <div class="hint">早上到了计划时间，或者当天第一次用电脑时（5 点以后），会弹出「今日计划」；晚上到了复盘时间弹出「今日复盘」。「计划」页里随时可以写。</div>
+          </fieldset>
+
+          <fieldset>
+            <legend>其他</legend>
+            <div class="check"><input type="checkbox" id="openAtLogin" /><label for="openAtLogin">开机自动启动（安装版生效）</label></div>
+            <div class="about">
+              <span id="versionText" class="muted">当前版本 —</span>
+              <button type="button" id="updateBtn" class="btn small">检查更新</button>
+            </div>
+          </fieldset>
+        </div>
       </form>
     </section>
   </main>
