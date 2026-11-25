@@ -267,6 +267,33 @@ details.day .cols button:hover { background: var(--color-overlay-pressed); }
 .settings .reset { margin-top: 10px; }
 .settings .about { display: flex; align-items: center; gap: var(--spacing-3); margin-top: 14px; padding-top: var(--spacing-3); border-top: 1px solid var(--color-border); }
 .settings .about button { margin-left: auto; }
+/* ---------- 「?」和点开的说明 ---------- */
+/* 标题旁边的小问号。长的说明都收在它后面，卡片上只留一眼能看完的。
+   浮窗靠 anchor-name 找到它（Electron 33 里 popovertarget 不会自动当锚点）；以后别的卡片也加「?」的话，每个要起自己的名字 */
+.help { width: 18px; height: 18px; margin-left: 6px; padding: 0; border: 1px solid var(--color-control-border); border-radius: 50%; background: transparent; color: var(--color-text-secondary); font-size: 11px; font-weight: var(--font-weight-semibold); line-height: 1; vertical-align: 1px; anchor-name: --help; }
+.help:hover, fieldset:has(:popover-open) .help { border-color: var(--color-accent); background: var(--color-accent); color: var(--color-on-accent); }
+/* 浮在「?」的右下方；下面放不下就翻到上面，上下都放不下（窗口矮、「?」又在中间）就放到它右边、底边和它对齐往上长。
+   点外面或者按 Esc 收起（popover 自带）。浮起来的东西才有阴影 */
+.help-pop { position-anchor: --help; position-area: bottom span-right; position-try-fallbacks: flip-block, --help-beside; inset: auto; margin: 6px 0; width: 336px; border: 0; padding: var(--spacing-3); border-radius: var(--radius-container); background: var(--color-background-popover); color: var(--color-text-primary); box-shadow: var(--shadow-med), 0 0 0 1px var(--color-border); transition: opacity var(--duration-fast) var(--ease-standard), translate var(--duration-fast) var(--ease-standard); }
+@starting-style { .help-pop:popover-open { opacity: 0; translate: 0 -4px; } }
+/* 右边那个位置不能写成上下居中：「?」在会滚动的 main 里，浏览器是按没滚动时的位置算能放多高的，滚下来以后居中的那一格只剩「?」那么高 */
+@position-try --help-beside { position-area: right span-top; margin: 0 8px; }
+/* 上面：桌面上那只，头上顶着这一步的倒计时（样子和 pet.css 里的 .pomo 一样：专注红、休息绿、停着的时候灰） */
+.help-stage { display: flex; justify-content: center; padding: 22px 0 6px; border-radius: var(--radius-element); background: var(--color-background-muted); }
+.help-pet { position: relative; width: 96px; }
+.help-pet svg { display: block; width: 96px; height: 84px; stroke: none; }
+.help-pill { position: absolute; left: 50%; top: 11px; transform: translate(-50%, -100%); padding: 2px 8px 2px 6px; border-radius: var(--radius-full); background: var(--color-error); color: var(--color-on-accent); font-size: 11.5px; font-weight: var(--font-weight-semibold); font-variant-numeric: tabular-nums; line-height: 1.4; white-space: nowrap; }
+.help-stage.break .help-pill { background: var(--color-success); }
+.help-stage:is(.wait, .strict) .help-pill { background: var(--color-text-secondary); }
+/* 只有专注的时候抱着电脑（<use> 引进来的画改不了里面的样式，用变量递进去） */
+.help-stage:not(.focus) { --pet-laptop: none; }
+.pet-laptop { display: var(--pet-laptop, inline); }
+.defs { position: absolute; }
+/* 下面：这一步的几行字。留够最长那一步的高度，切来切去浮窗不跳 */
+.help-pop .seg { margin-top: var(--spacing-2); }
+.help-pop ul { margin: var(--spacing-2) 0 0; padding-left: 1.4em; min-height: 8.5em; color: var(--color-text-secondary); font-size: var(--font-size-sm); line-height: 1.6667; }
+.help-pop li + li { margin-top: 2px; }
+.help-pop li::marker { color: var(--color-text-disabled); }
 /* 「已保存」：浮在右边这一栏的下面正中（左边 200px 是导航），不占地方、不挡鼠标 */
 .toast { position: fixed; left: calc(200px + (100% - 200px) / 2); bottom: var(--spacing-5); transform: translate(-50%, 8px); padding: 0 var(--spacing-4); line-height: var(--size-element-md); border-radius: var(--radius-full); background: var(--color-background-inverted); color: var(--color-background-body); font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); white-space: nowrap; box-shadow: var(--shadow-med); opacity: 0; pointer-events: none; transition: opacity var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard); }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }

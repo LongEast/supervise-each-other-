@@ -171,7 +171,7 @@
     $('heroTime').textContent = time;
     $('heroSub').textContent = sub;
     $('heroFill').style.width = `${Math.round(Math.min(1, Math.max(0, fill)) * 100)}%`;
-    for (const g of $('heroPet').querySelectorAll('[data-skin]')) g.classList.toggle('hidden', g.dataset.skin !== (state.petSkin || 'dog'));
+    for (const g of $('petArt').querySelectorAll('[data-skin]')) g.classList.toggle('hidden', g.dataset.skin !== (state.petSkin || 'dog'));
   }
   setInterval(renderHero, 1000);
 
@@ -734,6 +734,33 @@
     $('updateBtn').textContent = state.updateReady ? `重启并更新到 ${state.updateReady}` : '检查更新';
   }
   $('updateBtn').addEventListener('click', () => buddy.checkUpdate());
+
+  // ---------- 「?」：番茄钟怎么用 ----------
+  // 浮窗的开关、点外面 / 按 Esc 收起、贴着「?」定位都是浏览器管的（popover + CSS anchor），这里只管一步一步切：
+  // 上面那只头上的倒计时换成这一步的样子，下面换成这一步的几行字（字写在 panel.html 里）
+  const POMO_HELP = [
+    { id: 'focus', label: '专注', pill: (focus) => `🍅 ${focus}:00` },
+    { id: 'break', label: '休息', pill: (focus, rest) => `☕ ${rest}:00` },
+    { id: 'wait', label: '休息结束', pill: () => '🍅 等你开始' },
+    { id: 'strict', label: '严格模式', pill: (focus) => `🐟 ${Math.floor(focus / 2)}:30` }, // 专注到一半去摸鱼，停在这儿
+  ];
+  let pomoHelpStep = POMO_HELP[0].id;
+  const pomoHelpTabs = POMO_HELP.map((s) => button('', s.label, () => showPomoHelp(s.id)));
+  $('pomoHelpSeg').replaceChildren(...pomoHelpTabs);
+  function showPomoHelp(id) {
+    pomoHelpStep = id;
+    POMO_HELP.forEach((s, i) => {
+      pomoHelpTabs[i].classList.toggle('on', s.id === id);
+      pomoHelpTabs[i].setAttribute('aria-pressed', String(s.id === id));
+    });
+    $('pomoHelpStage').className = `help-stage ${id}`;
+    // 倒计时上的数字用的是设置里填的时长
+    const minutes = (input, fallback) => Math.round(num(Number($(input).value))) || fallback;
+    $('pomoHelpPill').textContent = POMO_HELP.find((s) => s.id === id).pill(minutes('pomodoroFocusMinutes', 25), minutes('pomodoroBreakMinutes', 5));
+    for (const ul of $('pomoHelp').querySelectorAll('[data-step]')) ul.classList.toggle('hidden', ul.dataset.step !== id);
+  }
+  $('pomoHelp').addEventListener('toggle', (e) => e.newState === 'open' && showPomoHelp(pomoHelpStep));
+  showPomoHelp(pomoHelpStep);
 
   // ---------- 启动 ----------
   buddy.onState((s) => {

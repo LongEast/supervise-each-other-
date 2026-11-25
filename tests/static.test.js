@@ -109,7 +109,9 @@ test('换形象：右键菜单和面板的设置页里能选，选择会记住�
   // 面板「今天」页番茄钟卡片里画的也跟着形象换：每个形象一组，默认只显示小狗
   const panelHtml = read('renderer/panel.html');
   for (const id of skins) assert.ok(panelHtml.includes(`<g data-skin="${id}"${id === 'dog' ? '' : ' class="hidden"'}>`), `面板里要有 ${id} 的画`);
-  assert.match(read('renderer/panel.js'), /\$\('heroPet'\)\.querySelectorAll\('\[data-skin\]'\)\) g\.classList\.toggle\('hidden', g\.dataset\.skin !== \(state\.petSkin \|\| 'dog'\)\)/);
+  // 画只有一份（#petArt），番茄钟卡片和设置页的「?」说明都是 <use> 引的，换形象时两处一起换
+  assert.match(read('renderer/panel.js'), /\$\('petArt'\)\.querySelectorAll\('\[data-skin\]'\)\) g\.classList\.toggle\('hidden', g\.dataset\.skin !== \(state\.petSkin \|\| 'dog'\)\)/);
+  assert.equal(panelHtml.match(/<use href="#petArt" \/>/g).length, 2);
   assert.equal(html.match(/<svg /g).length, 1); // 两套画在同一个 #pet 里：拖动、滚轮、右键、点击都只接了它
 });
 
@@ -294,6 +296,36 @@ test('番茄钟严格模式：摸鱼时倒计时停着；能暂停 5 分钟，�
   for (const hold of ['over', 'pause', 'slack']) assert.match(pet, new RegExp(`if \\(p\\.hold === '${hold}'\\)`));
   assert.match(pet, /kind === 'freeze'/);
   assert.match(read('renderer/panel.js'), /const left = hold \? Math\.max\(0, Math\.round\(num\(p\.leftSec\)\)\)/);
+});
+
+test('设置页的番茄钟说明收在「?」后面：点开是一个浮窗，上面画着桌面上那只和头上的倒计时，下面一步一步讲', () => {
+  const html = read('renderer/panel.html');
+  const css = read('renderer/panel.css');
+  const js = read('renderer/panel.js');
+  const card = html.slice(html.indexOf('<legend>番茄钟'), html.indexOf('<legend>计划和复盘</legend>'));
+  // 「?」在标题旁边，开关用浏览器自带的 popover（点外面、按 Esc 都能收起），不提交表单
+  assert.match(card, /<legend>番茄钟<button type="button" class="help" popovertarget="pomoHelp" aria-label="番茄钟怎么用"/);
+  assert.match(card, /<div id="pomoHelp" class="help-pop" popover>/);
+  assert.match(css, /\.help-pop \{ position-anchor: --help; position-area: bottom span-right; position-try-fallbacks: flip-block/);
+  // 卡片上不再有大段的字：留下的提示只有一行
+  const hints = [...card.slice(0, card.indexOf('id="pomoHelp"')).matchAll(/<div class="hint">([^<]*)<\/div>/g)].map((m) => m[1]);
+  assert.equal(hints.length, 1);
+  assert.ok(hints[0].length < 40, hints[0]);
+  // 四步，每一步都有按钮、有几行字；头上的倒计时跟着换颜色，只有专注的时候抱着电脑
+  const steps = [...js.slice(js.indexOf('const POMO_HELP = ['), js.indexOf('let pomoHelpStep')).matchAll(/\{ id: '(\w+)', label: '([^']+)'/g)].map((m) => m[1]);
+  assert.deepEqual(steps, ['focus', 'break', 'wait', 'strict']);
+  for (const id of steps) {
+    const list = new RegExp(`<ul data-step="${id}"${id === 'focus' ? '' : ' class="hidden"'}>([\\s\\S]*?)</ul>`).exec(card);
+    assert.ok(list, `缺少 ${id} 这一步的说明`);
+    assert.ok(list[1].match(/<li>/g).length >= 2, id);
+  }
+  assert.match(card, /<svg aria-hidden="true" viewBox="0 0 160 140"><use href="#petArt" \/><\/svg>/);
+  assert.match(css, /\.help-stage\.break \.help-pill \{ background: var\(--color-success\); \}/);
+  assert.match(css, /\.help-stage:not\(\.focus\) \{ --pet-laptop: none; \}/);
+  assert.match(html, /<g class="pet-laptop">/);
+  // 倒计时上的数字是设置里填的时长；每次打开都重新取
+  assert.match(js, /pill\(minutes\('pomodoroFocusMinutes', 25\), minutes\('pomodoroBreakMinutes', 5\)\)/);
+  assert.match(js, /\$\('pomoHelp'\)\.addEventListener\('toggle', \(e\) => e\.newState === 'open' && showPomoHelp\(pomoHelpStep\)\);/);
 });
 
 test('面板：一个窗口四页（今天 / 统计 / 计划 / 设置）；常用的入口在右键小狗的菜单里，托盘菜单留不常用的', () => {
