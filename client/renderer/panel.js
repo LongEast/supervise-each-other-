@@ -99,9 +99,21 @@
   // 今天
   // =====================================================================
   let heroSig = '';
-  function heroButtons(phase) {
+  function heroButtons(phase, paused, strict) {
     if (!phase) return [button('btn solid', '开始番茄钟', () => buddy.startPomodoro())];
     const stop = button('btn', '结束', () => buddy.stopPomodoro());
+    // 严格模式：专注时多一个「暂停 5 分钟」；暂停着的时候换成「继续专注 / 再暂停」
+    // （三个按钮要排在一行里，右边是小狗，所以字少：完整的说法在 title 里）
+    if (phase === 'focus' && paused) {
+      const more = button('btn', '+5 分钟', () => buddy.pauseMorePomodoro());
+      more.title = '再暂停 5 分钟，到点再提醒';
+      return [button('btn solid', '继续专注', () => buddy.continuePomodoro()), more, stop];
+    }
+    if (phase === 'focus' && strict) {
+      const pause = button('btn', '暂停', () => buddy.pausePomodoro());
+      pause.title = '暂停 5 分钟，到点会问你要不要继续';
+      return [button('btn solid', '现在就休息', () => buddy.skipPomodoro()), pause, stop];
+    }
     if (phase === 'focus') return [button('btn solid', '现在就休息', () => buddy.skipPomodoro()), stop];
     if (phase === 'break') return [button('btn solid', '跳过休息', () => buddy.skipPomodoro()), stop];
     return [button('btn solid', '重新开始', () => buddy.resumePomodoro()), button('btn', '再休息一会', () => buddy.restMorePomodoro()), stop];
@@ -113,13 +125,17 @@
     const set = state.pomoSettings || { focusMinutes: 25, breakMinutes: 5 };
     const done = Math.round(num(state.pomoToday));
     const phase = p?.phase || null;
-    if (heroSig !== String(phase)) {
-      heroSig = String(phase);
-      $('hero').className = `hero ${phase || 'off'}`;
-      $('heroBtns').replaceChildren(...heroButtons(phase));
+    const hold = phase === 'focus' ? p.hold || null : null; // 专注的倒计时停着：'slack' 在摸鱼 | 'pause' 暂停中 | 'over' 暂停到点了
+    const paused = hold === 'pause' || hold === 'over';
+    const sig = `${phase}|${paused}|${!!set.strict}`;
+    if (heroSig !== sig) {
+      heroSig = sig;
+      $('heroBtns').replaceChildren(...heroButtons(phase, paused, !!set.strict));
     }
+    $('hero').className = `hero ${phase || 'off'}${hold ? ' held' : ''}`;
     const total = num(p?.minutes) * 60;
-    const left = phase === 'focus' || phase === 'break' ? Math.max(0, Math.ceil((p.endsAt - Date.now()) / 1000)) : 0;
+    // 倒计时停着的时候 endsAt 不准（摸鱼时它一直在往后挪，暂停时还没定），用主进程给的 leftSec
+    const left = hold ? Math.max(0, Math.round(num(p.leftSec))) : phase === 'focus' || phase === 'break' ? Math.max(0, Math.ceil((p.endsAt - Date.now()) / 1000)) : 0;
     const clock = (sec) => `${Math.floor(sec / 60)}:${pad(sec % 60)}`;
     let label = '番茄钟 · 没开';
     let time = clock(num(set.focusMinutes) * 60);
@@ -130,6 +146,16 @@
       time = clock(left);
       sub = `第 ${done + 1} 个番茄 · 共 ${p.minutes} 分钟`;
       fill = total ? 1 - left / total : 0;
+      if (hold === 'slack') {
+        label = '番茄钟 · 停着';
+        sub = '摸鱼的时间不算，回去学习接着走';
+      } else if (hold === 'pause') {
+        label = '番茄钟 · 暂停中';
+        sub = `${clock(Math.max(0, Math.ceil((num(p.pauseEndsAt) - Date.now()) / 1000)))} 后叫你 · 也可以提前继续`;
+      } else if (hold === 'over') {
+        label = '番茄钟 · 暂停时间到了';
+        sub = '点「继续专注」倒计时才接着走';
+      }
     } else if (phase === 'break') {
       label = '番茄钟 · 休息中';
       time = clock(left);

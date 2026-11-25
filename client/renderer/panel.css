@@ -89,6 +89,8 @@ input[type=checkbox]:disabled { opacity: 0.5; cursor: default; }
 .hero-bar div { width: 0; height: 6px; border-radius: var(--radius-full); background: var(--color-hero-focus); }
 .hero .dot.tomato { background: var(--color-hero-focus); }
 .hero.break .hero-bar div, .hero.break .dot.tomato { background: var(--color-hero-break); }
+/* 严格模式下倒计时停着（在摸鱼，或者暂停了）：数字变淡 */
+.hero.held .hero-time { opacity: 0.5; }
 .hero-btns { display: flex; gap: var(--spacing-2); margin-top: auto; padding-top: var(--spacing-4); position: relative; z-index: 1; flex-wrap: wrap; max-width: 260px; }
 .hero-btns .btn { height: var(--size-element-lg); padding: 0 var(--spacing-4); }
 .hero-btns .btn.solid { background: var(--color-hero-button); color: var(--color-on-hero-button); }

@@ -33,6 +33,7 @@ function fillPomodoro() {
   $('pomodoroFocusMinutes').value = current.pomodoroFocusMinutes || 25;
   $('pomodoroBreakMinutes').value = current.pomodoroBreakMinutes || 5;
   $('pomodoroBreakCounts').checked = !!current.pomodoroBreakCounts;
+  $('pomodoroStrict').checked = !!current.pomodoroStrict;
 }
 
 async function load() {
@@ -87,6 +88,7 @@ $('form').addEventListener('submit', async (e) => {
     pomodoroFocusMinutes: $('pomodoroFocusMinutes').value,
     pomodoroBreakMinutes: $('pomodoroBreakMinutes').value,
     pomodoroBreakCounts: $('pomodoroBreakCounts').checked,
+    pomodoroStrict: $('pomodoroStrict').checked,
     openAtLogin: $('openAtLogin').checked,
     planTime: $('planTime').value,
     reviewTime: $('reviewTime').value,

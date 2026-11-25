@@ -270,8 +270,11 @@ function render() {
   const pomoEl = $('cardPomo');
   if ((pomo?.phase === 'focus' || pomo?.phase === 'break') && v.key !== 'offline' && v.key !== 'paused') {
     const left = Math.max(1, Math.ceil(num(pomo.leftSec) / 60));
-    pomoEl.textContent = `🍅 番茄钟${pomo.phase === 'focus' ? '专注中' : '休息中'} · 还剩 ${left} 分钟`;
-    pomoEl.className = `card-pomo ${pomo.phase}`;
+    // 严格模式下倒计时停着：在摸鱼（slack），或者自己点了暂停（pause，到点了还没选是 over）
+    const held = pomo.phase === 'focus' && ['slack', 'pause', 'over'].includes(pomo.hold);
+    if (held) pomoEl.textContent = `🍅 番茄钟${pomo.hold === 'slack' ? '停着（摸鱼的时间不算）' : '暂停中'} · 专注还剩 ${left} 分钟`;
+    else pomoEl.textContent = `🍅 番茄钟${pomo.phase === 'focus' ? '专注中' : '休息中'} · 还剩 ${left} 分钟`;
+    pomoEl.className = `card-pomo ${held ? 'wait' : pomo.phase}`;
   } else if (pomo?.phase === 'wait' && v.key !== 'offline' && v.key !== 'paused') {
     // 休息结束了，还没点「重新开始」
     pomoEl.textContent = '🍅 番茄钟 · 休息结束，还没开始下一轮';
@@ -302,8 +305,27 @@ function renderPomo() {
     box.className = 'pomo wait';
     return;
   }
+  const clock = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+  if (p.hold === 'over') {
+    // 暂停到点了，等着选「继续专注」
+    box.textContent = '⏸ 等你继续';
+    box.className = 'pomo wait';
+    return;
+  }
+  if (p.hold === 'pause') {
+    // 暂停中：走的是暂停的倒计时
+    box.textContent = `⏸ ${clock(Math.max(0, Math.ceil((p.pauseEndsAt - Date.now()) / 1000)))}`;
+    box.className = 'pomo wait';
+    return;
+  }
+  if (p.hold === 'slack') {
+    // 严格模式下在摸鱼：专注的倒计时停在这儿
+    box.textContent = `🐟 ${clock(Math.max(0, Math.round(num(p.leftSec))))}`;
+    box.className = 'pomo wait';
+    return;
+  }
   const left = Math.max(0, Math.ceil((p.endsAt - Date.now()) / 1000));
-  box.textContent = `${p.phase === 'break' ? '☕' : '🍅'} ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+  box.textContent = `${p.phase === 'break' ? '☕' : '🍅'} ${clock(left)}`;
   box.className = `pomo ${p.phase}`;
 }
 setInterval(renderPomo, 1000);
@@ -480,8 +502,9 @@ buddy.onSelfAlert(({ minutes, friend }) => {
   showBubble(`你已经连续摸鱼 <b>${minutes} 分钟</b>啦 🐟<span class="sub">${who} 能看到哦，回去干活吧～</span>`, { self: true, ms: 12000 });
 });
 // 番茄钟：开始、到休息时间、休息结束都冒气泡（休息结束时主进程另外会弹窗，等你选要不要开始下一轮）
-buddy.onPomodoro(({ kind, minutes, done, skipped, again }) => {
+buddy.onPomodoro(({ kind, minutes, done, skipped, again, leftSec, quiet }) => {
   const n = Math.round(Number(minutes) || 0);
+  const leftMin = Math.max(1, Math.ceil((Number(leftSec) || 0) / 60));
   const say = (html, sub, ms = 12000) => showBubble(`${html}<span class="sub">${sub}</span>`, { self: true, ms });
   const pet = petName();
   if (kind === 'start') say(`番茄钟开始 🍅 专注 <b>${n} 分钟</b>`, `到休息时间${pet}会叫你 · 右键${pet}可以结束`);
@@ -499,6 +522,18 @@ buddy.onPomodoro(({ kind, minutes, done, skipped, again }) => {
   } else if (kind === 'idle') {
     // 人不在的时候停的，气泡留着等回来看
     say('好一阵没碰电脑，番茄钟先停了 🍅', `右键${pet}可以重新开始 · 点击关闭`, 8 * 3600_000);
+  } else if (kind === 'pause') {
+    // 严格模式：自己点的「暂停 5 分钟」/「5 分钟后再提醒」
+    say(again ? '那就再暂停 <b>5 分钟</b> ⏸' : '番茄钟暂停 <b>5 分钟</b> ⏸', `到点${pet}会叫你 · 右键${pet}可以提前继续`);
+  } else if (kind === 'pause-over') {
+    animate('jump');
+    say('暂停时间到啦 ⏸', `点「继续专注」倒计时才接着走 · 右键${pet}也能选`, 15000);
+  } else if (kind === 'continue') {
+    animate('jump');
+    say(`接着专注 🍅 还剩 <b>${leftMin} 分钟</b>`, '加油～');
+  } else if (kind === 'freeze') {
+    // 严格模式：专注时摸鱼了。一段专注里只说一次，之后只是倒计时停住
+    if (!quiet) say('摸鱼的时间不算番茄钟 🐟', `倒计时先停着，回去学习接着走 · 想歇一下可以右键${pet}暂停 5 分钟`);
   } else if (kind === 'stop') say('番茄钟结束了 🍅', '辛苦啦', 5000);
 });
 

@@ -246,7 +246,8 @@
             <div><label for="pomodoroBreakMinutes">每次休息多少分钟</label><input type="number" id="pomodoroBreakMinutes" min="1" max="60" /></div>
           </div>
           <div class="check"><input type="checkbox" id="pomodoroBreakCounts" /><label for="pomodoroBreakCounts">休息时间也计入学习时间</label></div>
-          <div class="hint">在「今天」页或者右键<span class="pet-name">小狗</span>开始，专注和休息轮着来，直到点「结束」；<span class="pet-name">小狗</span>头上有倒计时。到休息时间只冒气泡；休息结束时会弹窗，点「重新开始番茄钟」下一轮才开始计时，也可以点小箭头「再休息一会」，或者「恢复默认模式」结束番茄钟。<br />休息时摸鱼不算摸鱼时间，也不会弹摸鱼提醒。不勾上面这项的话休息时间也不算学习时间（休息时还在接着学的照常算）；勾上就整段休息都算学习，离开电脑也算。一整轮都没碰电脑，番茄钟会自己停掉。正在进行的这一段不受改动影响，新的时长从下一段开始生效。</div>
+          <div class="check"><input type="checkbox" id="pomodoroStrict" /><label for="pomodoroStrict">严格模式：摸鱼的时间不算进番茄钟</label></div>
+          <div class="hint">在「今天」页或者右键<span class="pet-name">小狗</span>开始，专注和休息轮着来，直到点「结束」；<span class="pet-name">小狗</span>头上有倒计时。到休息时间只冒气泡；休息结束时会弹窗，点「重新开始番茄钟」下一轮才开始计时，也可以点小箭头「再休息一会」，或者「恢复默认模式」结束番茄钟。<br />休息时摸鱼不算摸鱼时间，也不会弹摸鱼提醒。不勾上面这项的话休息时间也不算学习时间（休息时还在接着学的照常算）；勾上就整段休息都算学习，离开电脑也算。一整轮都没碰电脑，番茄钟会自己停掉。正在进行的这一段不受改动影响，新的时长从下一段开始生效。<br />严格模式：专注时一摸鱼倒计时就停住，回去学习才接着走。想歇一下可以点「暂停 5 分钟」（「今天」页或者右键<span class="pet-name">小狗</span>）；到点会弹窗，选「继续专注」「5 分钟后再提醒」或者退出番茄钟，选了才接着计时。</div>
         </fieldset>
 
         <div class="col">

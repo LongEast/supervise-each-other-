@@ -24,6 +24,7 @@
     button.more[aria-expanded="true"] { transform: rotate(180deg); }
     button.ghost { margin-top: 2px; height: var(--size-element-md); padding: 0 var(--spacing-4); background: var(--color-neutral); color: var(--color-text-primary); }
     button.ghost:hover { background: var(--color-overlay-pressed); }
+    button.ghost.below { margin-top: var(--spacing-2); } /* 「暂停时间到啦」：直接排在主按钮下面，中间没有小箭头 */
     .foot { margin: var(--spacing-3) 0 0; color: var(--color-text-secondary); font-size: var(--font-size-sm); }
     .foot a { color: inherit; text-underline-offset: 2px; border-radius: 4px; }
     .foot a:hover { color: var(--color-text-primary); }
@@ -40,13 +41,18 @@
     <p id="whatSlack" class="what">你已经连续摸鱼 <b id="minutes">—</b> 了</p>
     <!-- 番茄钟：休息结束了，点了「重新开始」才开始下一轮 -->
     <p id="whatFocus" class="what" hidden>准备好了就开始新一轮 <b id="focusMinutes">—</b>专注</p>
+    <!-- 番茄钟（严格模式）：暂停到点了，选了「继续专注」倒计时才接着走 -->
+    <p id="whatPause" class="what" hidden>专注还剩 <b id="pauseLeft">—</b>，准备好了就接着来</p>
     <p id="friend" class="friend"></p>
     <button id="ok" type="button">这就去学习 💪</button>
     <button id="resume" type="button" hidden>重新开始番茄钟 🍅</button>
     <button id="more" class="more" type="button" aria-expanded="false" aria-controls="restMore" title="还没休息够？" hidden>▾</button>
     <button id="restMore" class="ghost" type="button" hidden>再休息一会</button>
+    <button id="continue" type="button" hidden>继续专注 🍅</button>
+    <button id="pauseMore" class="ghost below" type="button" hidden>5 分钟后再提醒</button>
     <p id="footSlack" class="foot"><label for="next">还在摸鱼的话，再过</label> <select id="next"></select> 提醒我 · <a href="#" class="settings">设置</a></p>
     <p id="footFocus" class="foot" hidden>不想用番茄钟了？<a href="#" id="stopPomodoro">恢复默认模式</a> · <a href="#" class="settings">设置</a></p>
+    <p id="footPause" class="foot" hidden>这会儿专注不了？<a href="#" id="quitPomodoro">退出番茄钟</a> · <a href="#" class="settings">设置</a></p>
   </main>
   <script src="remind.js"></script>
 </body>

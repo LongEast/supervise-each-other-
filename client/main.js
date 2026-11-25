@@ -8,7 +8,7 @@ const { RelayClient } = require('./relay');
 const { DEFAULT_RULES } = require('./classifier');
 const { clampScale, petSize, rescaleBounds, SCALE_STEP } = require('./pet-geometry');
 const { SlackReminder, clampRemindMinutes, remindOptions, REMIND_DEFAULT, REMIND_OPTIONS } = require('./reminder');
-const { Pomodoro, clampFocusMinutes, clampBreakMinutes, POMO_FOCUS_DEFAULT, POMO_BREAK_DEFAULT } = require('./pomodoro');
+const { Pomodoro, clampFocusMinutes, clampBreakMinutes, POMO_FOCUS_DEFAULT, POMO_BREAK_DEFAULT, POMO_PAUSE_MINUTES } = require('./pomodoro');
 const { JournalStore, JournalSync, duePrompt, markPrompted, snooze, snoozesLeft, progress, toMinutes, isDate, addDays } = require('./journal');
 const { buildDay, buildWeek } = require('./history');
 
@@ -62,6 +62,7 @@ const DEFAULT_CONFIG = {
   pomodoroFocusMinutes: POMO_FOCUS_DEFAULT, // 番茄钟：专注多少分钟
   pomodoroBreakMinutes: POMO_BREAK_DEFAULT, // 番茄钟：休息多少分钟
   pomodoroBreakCounts: false, // 番茄钟的休息时间算不算学习时间
+  pomodoroStrict: false, // 番茄钟严格模式：专注时摸鱼的时间不算，倒计时停着；可以自己暂停 5 分钟
   openAtLogin: false,
   planTime: '09:00', // 计划提醒时间
   reviewTime: '22:00', // 复盘提醒时间
@@ -94,6 +95,7 @@ function loadConfig() {
       pomodoroFocusMinutes: clampFocusMinutes(c.pomodoroFocusMinutes),
       pomodoroBreakMinutes: clampBreakMinutes(c.pomodoroBreakMinutes),
       pomodoroBreakCounts: c.pomodoroBreakCounts === true,
+      pomodoroStrict: c.pomodoroStrict === true,
       rules: { ...DEFAULT_RULES, ...(c.rules || {}) },
     };
   } catch {
@@ -130,17 +132,25 @@ let petWin = null;
 let panelWin = null; // 面板：今天 / 统计 / 计划 / 设置
 const journalWins = {}; // 'plan:2026-01-02' 这样的 key → 窗口
 let remindWin = null; // 「该学习啦」/「休息结束啦」提醒窗口
-let remindKind = null; // 窗口上现在显示的是哪种：'slack' 连续摸鱼 | 'focus' 番茄钟休息结束，等着点「重新开始」
+let remindKind = null; // 窗口上现在显示的是哪种：'slack' 连续摸鱼 | 'focus' 番茄钟休息结束，等着点「重新开始」 | 'pause' 番茄钟暂停到点了
 let tray = null;
 const reminder = new SlackReminder(); // 这一轮连续摸鱼提醒到哪了
 const pomodoro = new Pomodoro(); // 番茄钟（右键小狗开始），重启后不接着跑
 let pomoTimer = null;
 
-// 发给搭子的状态；番茄钟开着的话带上现在是专注、休息还是等着开始下一轮（wait），还剩多久（暂停分享时不带）
+// 发给搭子的状态；番茄钟开着的话带上现在是专注、休息还是等着开始下一轮（wait），还剩多久（暂停分享时不带）。
+// hold：专注的倒计时停着的原因（严格模式下在摸鱼 'slack' / 暂停中 'pause' / 暂停到点了还没选 'over'），在走就不带
 function myStatus() {
   const s = tracker.getStatus();
   if (s.paused || !pomodoro.phase) return s;
-  return { ...s, pomodoro: { phase: pomodoro.phase, leftSec: pomodoro.leftSec(Date.now()) } };
+  const hold = pomodoro.hold;
+  return { ...s, pomodoro: { phase: pomodoro.phase, leftSec: pomodoro.leftSec(Date.now()), ...(hold ? { hold } : {}) } };
+}
+/** 给小狗和面板的：倒计时停着时（hold）用 leftSec，不能拿 endsAt 自己算；暂停中另外有一个暂停的倒计时（pauseEndsAt） */
+function pomodoroView() {
+  if (!pomodoro.phase) return null;
+  const { phase, endsAt, minutes, hold, pauseEndsAt } = pomodoro;
+  return { phase, endsAt, minutes, hold, leftSec: pomodoro.leftSec(Date.now()), pauseEndsAt };
 }
 
 function viewState() {
@@ -156,7 +166,7 @@ function viewState() {
     petView: config.petView,
     petSkin: config.petSkin,
     petName: petName(),
-    pomodoro: pomodoro.phase ? { phase: pomodoro.phase, endsAt: pomodoro.endsAt, minutes: pomodoro.minutes } : null, // 小狗头上的倒计时
+    pomodoro: pomodoroView(), // 小狗头上的倒计时
     // 下面几项是面板用的
     pomoSettings: pomoSettings(),
     pomoToday: tracker.dayRecord().pomo.count, // 今天完整专注完了几个番茄
@@ -308,8 +318,10 @@ const openStats = ({ who } = {}) => openPanel('stats', { who });
 
 // ---------------- 「该学习啦」/「休息结束啦」提醒 ----------------
 // 置顶的小窗口，要自己点掉；小狗同时抖一下、冒个气泡。只提醒自己，不发给搭子。
-// 两种提醒共用一个窗口（renderer/remind.html），info.kind 决定显示哪种：
-// 'slack' 连续摸鱼太久；'focus' 番茄钟的休息结束了，等着选「重新开始 / 再休息一会 / 恢复默认模式」。
+// 三种提醒共用一个窗口（renderer/remind.html），info.kind 决定显示哪种：
+// 'slack' 连续摸鱼太久；'focus' 番茄钟的休息结束了，等着选「重新开始 / 再休息一会 / 恢复默认模式」；
+// 'pause' 番茄钟暂停到点了，等着选「继续专注 / 5 分钟后再提醒 / 退出番茄钟」。
+const REMIND_TITLE = { slack: '该学习啦', focus: '休息结束啦', pause: '暂停时间到啦' };
 const watchingFriend = () => (relay.state === 'online' && friend?.online ? friend.name : ''); // 搭子这会儿真的看得到才提
 
 function showRemindWindow(info) {
@@ -319,16 +331,16 @@ function showRemindWindow(info) {
       remindWin.webContents.send('remind', info);
       return remindWin.showInactive();
     }
-    remindWin.destroy(); // 两种提醒的窗口不一样高，换一种就重开
+    remindWin.destroy(); // 几种提醒的窗口不一样高，换一种就重开
   }
   remindKind = info.kind;
-  const size = { width: 380, height: info.kind === 'focus' ? 320 : 300 }; // 「休息结束啦」多一排按钮
+  const size = { width: 380, height: info.kind === 'slack' ? 300 : 320 }; // 番茄钟的两种多一排按钮
   const wa = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea; // 弹在正在用的那块屏幕上
   const win = (remindWin = new BrowserWindow({
     ...size,
     x: Math.round(wa.x + (wa.width - size.width) / 2),
     y: Math.round(wa.y + (wa.height - size.height) / 3),
-    title: info.kind === 'focus' ? '休息结束啦' : '该学习啦',
+    title: REMIND_TITLE[info.kind],
     show: false,
     autoHideMenuBar: true,
     resizable: false,
@@ -356,8 +368,10 @@ function closeRemindWindow(kind) {
 // 连续摸鱼太久
 function showSlackReminder(minutes) {
   petWin?.webContents.send('self-alert', { minutes, friend: friend?.name || '' });
-  // 番茄钟的「休息结束啦」还没点掉：那个窗口要留着等你选，这次只冒气泡
-  if (remindWin && !remindWin.isDestroyed() && remindKind === 'focus') return;
+  // 番茄钟的「休息结束啦」「暂停时间到啦」还没点掉：那个窗口要留着等你选，这次只冒气泡。
+  // 番茄钟暂停着也一样：到点了有它自己的弹窗，不叠两个
+  if (remindWin && !remindWin.isDestroyed() && remindKind !== 'slack') return;
+  if (pomodoro.paused) return;
   showRemindWindow({
     kind: 'slack',
     minutes,
@@ -366,7 +380,7 @@ function showSlackReminder(minutes) {
     friend: watchingFriend(),
   });
 }
-// 回去学习（或者离开、开始番茄钟的休息）了：「该学习啦」收起来。番茄钟的「休息结束啦」要等你选，不跟着关
+// 回去学习（或者离开、开始番茄钟的休息）了：「该学习啦」收起来。番茄钟的那两种要等你选，不跟着关
 function closeSlackReminder() {
   closeRemindWindow('slack');
 }
@@ -374,7 +388,8 @@ function closeSlackReminder() {
 // ---------------- 番茄钟 ----------------
 // 专注 → 休息 → 等你点「重新开始」→ 专注 … 一直循环，右键小狗开始 / 结束。到休息时间只冒气泡；
 // 休息结束时弹「休息结束啦」的窗口，点了「重新开始番茄钟」才接着计时。计时规则在 pomodoro.js。
-const pomoSettings = () => ({ focusMinutes: config.pomodoroFocusMinutes, breakMinutes: config.pomodoroBreakMinutes });
+// 严格模式（设置里勾）：专注时摸鱼的时间不算，倒计时停着；可以「暂停 5 分钟」，到点弹「暂停时间到啦」等着选。
+const pomoSettings = () => ({ focusMinutes: config.pomodoroFocusMinutes, breakMinutes: config.pomodoroBreakMinutes, strict: config.pomodoroStrict });
 
 // 休息时间怎么计时交给 tracker：设置里勾了就整段算学习；没勾的话休息时摸鱼不算摸鱼
 function syncRest() {
@@ -386,9 +401,12 @@ const POMO_NOTICE = {
   break: (m, x) => [x.again ? '🍅 再休息一会' : '🍅 专注结束，休息一下吧', `休息 ${m} 分钟，结束时会再叫你`],
   wait: () => ['🍅 休息结束啦', '在弹出的窗口里点「重新开始番茄钟」，新一轮才开始计时'],
   idle: () => ['🍅 番茄钟已结束', `好一阵没碰电脑，先停了。右键${petName()}可以重新开始`],
+  'pause-over': () => ['🍅 暂停时间到啦', '在弹出的窗口里选「继续专注」，倒计时才接着走'],
 };
+const POMO_SEGMENT = ['start', 'focus', 'break', 'wait', 'idle', 'stop']; // 换了一段（或者开始 / 结束）的那几种变化
+let freezeTold = false; // 这一段专注里说过「摸鱼不算番茄钟时间」了：切来切去不用每次都冒气泡
 
-/** 番茄钟有变化（开始 / 换到下一段 / 结束）：同步计时方式，让小狗冒气泡，告诉搭子 */
+/** 番茄钟有变化（开始 / 换到下一段 / 结束 / 倒计时停住或者接着走）：同步计时方式，让小狗冒气泡，告诉搭子 */
 function pomodoroChanged(kind, extra = {}) {
   syncRest();
   if (!pomodoro.phase) {
@@ -396,9 +414,15 @@ function pomodoroChanged(kind, extra = {}) {
     pomoTimer = null;
   }
   if (kind !== 'wait') closeRemindWindow('focus'); // 换了一段或者结束了，「休息结束啦」不用留着
+  if (kind !== 'pause-over') closeRemindWindow('pause'); // 「暂停时间到啦」也一样：选完或者番茄钟停了就收起来
+  if (POMO_SEGMENT.includes(kind)) freezeTold = false;
+  if (kind === 'freeze') {
+    extra = { ...extra, quiet: freezeTold };
+    freezeTold = true;
+  }
   const minutes = pomodoro.minutes;
   if (petWin && !petWin.isDestroyed() && petWin.isVisible()) {
-    petWin.webContents.send('pomodoro-event', { kind, minutes, done: pomodoro.done, ...extra });
+    petWin.webContents.send('pomodoro-event', { kind, minutes, done: pomodoro.done, leftSec: pomodoro.leftSec(Date.now()), ...extra });
   } else if (POMO_NOTICE[kind] && Notification.isSupported()) {
     const [title, body] = POMO_NOTICE[kind](minutes, extra);
     new Notification({ title, body, silent: false }).show();
@@ -430,13 +454,26 @@ function resumePomodoro() {
 function restMorePomodoro() {
   if (pomodoro.restMore(Date.now(), pomoSettings())) pomodoroChanged('break', { again: true });
 }
+// 严格模式下的暂停：专注时点「暂停 5 分钟」，到点弹窗里选「继续专注」或者「5 分钟后再提醒」（也可以右键菜单、面板里点）
+function pausePomodoro() {
+  if (pomodoro.pause(Date.now())) pomodoroChanged('pause');
+}
+function pauseMorePomodoro() {
+  if (pomodoro.pauseMore(Date.now())) pomodoroChanged('pause', { again: true });
+}
+function continuePomodoro() {
+  if (pomodoro.unpause(Date.now())) pomodoroChanged('continue');
+}
 function tickPomodoro() {
   const focusMinutes = pomodoro.phase === 'focus' ? pomodoro.minutes : 0;
-  const events = pomodoro.tick(Date.now(), { lastInputAt: tracker.lastInputAt }, pomoSettings());
+  const activity = { lastInputAt: tracker.lastInputAt, slacking: tracker.current.category === 'slack' };
+  const events = pomodoro.tick(Date.now(), activity, pomoSettings());
   if (events.includes('break')) tracker.addPomodoro(focusMinutes); // 完整专注完一个：记进今天的统计（手动跳过的不算）
   // 休息结束：不自己开始下一轮，弹窗等你选。窗口被直接关掉的话还停在这儿，右键小狗也能选
   if (events.includes('wait')) showRemindWindow({ kind: 'focus', ...pomoSettings() });
-  const kind = ['idle', 'break', 'wait'].find((k) => events.includes(k));
+  // 暂停到点：也不自己接着走，弹窗等你选
+  if (events.includes('pause-over')) showRemindWindow({ kind: 'pause', leftSec: pomodoro.leftSec(Date.now()), pauseMinutes: POMO_PAUSE_MINUTES });
+  const kind = ['idle', 'break', 'wait', 'pause-over', 'freeze', 'unfreeze'].find((k) => events.includes(k));
   if (kind) pomodoroChanged(kind);
 }
 
@@ -453,10 +490,21 @@ function pomodoroItems(withTime) {
     ];
   }
   const focus = pomodoro.phase === 'focus';
-  const left = withTime ? ` · 还剩 ${Math.max(1, Math.ceil(pomodoro.leftSec(Date.now()) / 60))} 分钟` : '';
+  const mins = (sec) => Math.max(1, Math.ceil(sec / 60));
+  const left = withTime ? ` · 还剩 ${mins(pomodoro.leftSec(Date.now()))} 分钟` : '';
+  if (pomodoro.paused) {
+    const pauseLeft = withTime && !pomodoro.pauseOver ? ` · ${mins(pomodoro.pauseLeftSec(Date.now()))} 分钟后叫你` : '';
+    return [
+      { label: pomodoro.pauseOver ? '🍅 暂停时间到了，等你继续' : `🍅 番茄钟暂停中${pauseLeft}`, enabled: false },
+      { label: `继续专注${left}`, click: continuePomodoro },
+      { label: `再暂停 ${POMO_PAUSE_MINUTES} 分钟`, click: pauseMorePomodoro },
+      { label: '结束番茄钟', click: stopPomodoro },
+    ];
+  }
   return [
-    { label: `🍅 番茄钟${focus ? '专注中' : '休息中'}${left}`, enabled: false },
+    { label: `🍅 番茄钟${focus ? (pomodoro.frozen ? '专注中（摸鱼时不走）' : '专注中') : '休息中'}${left}`, enabled: false },
     { label: focus ? '现在就休息' : '跳过休息，开始专注', click: skipPomodoro },
+    ...(focus && config.pomodoroStrict ? [{ label: `暂停 ${POMO_PAUSE_MINUTES} 分钟`, click: pausePomodoro }] : []),
     { label: '结束番茄钟', click: stopPomodoro },
   ];
 }
@@ -791,6 +839,9 @@ ipcMain.on('pomodoro:skip', skipPomodoro);
 ipcMain.on('pomodoro:resume', resumePomodoro);
 ipcMain.on('pomodoro:rest', restMorePomodoro);
 ipcMain.on('pomodoro:stop', stopPomodoro); // 「恢复默认模式」：不再用番茄钟计时
+ipcMain.on('pomodoro:pause', pausePomodoro); // 严格模式：暂停 5 分钟
+ipcMain.on('pomodoro:pause-more', pauseMorePomodoro); // 「5 分钟后再提醒」
+ipcMain.on('pomodoro:continue', continuePomodoro); // 「继续专注」
 ipcMain.handle('poke', (_e, text) => {
   const ok = relay.send({ type: 'poke', text: String(text || '').slice(0, 140) });
   return { sent: ok, reason: ok ? '' : '还没连上服务器' };
@@ -810,6 +861,7 @@ ipcMain.handle('config:save', (_e, next) => {
     pomodoroFocusMinutes: clampFocusMinutes(next.pomodoroFocusMinutes ?? config.pomodoroFocusMinutes),
     pomodoroBreakMinutes: clampBreakMinutes(next.pomodoroBreakMinutes ?? config.pomodoroBreakMinutes),
     pomodoroBreakCounts: next.pomodoroBreakCounts === undefined ? config.pomodoroBreakCounts : !!next.pomodoroBreakCounts,
+    pomodoroStrict: next.pomodoroStrict === undefined ? config.pomodoroStrict : !!next.pomodoroStrict,
     openAtLogin: !!next.openAtLogin,
     rules: next.rules || config.rules,
   };
@@ -822,7 +874,7 @@ ipcMain.handle('config:save', (_e, next) => {
   saveConfig();
   if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: config.openAtLogin });
   syncRest(); // 正在休息时改了「休息算不算学习」，马上生效；时长从下一段开始生效
-  updateTray(); // 菜单上写着番茄钟的时长
+  updateTray(); // 菜单上写着番茄钟的时长；严格模式开着才有「暂停 5 分钟」
   const newConn = [config.serverUrl, config.room, config.secret, config.name].join('|');
   if (newConn !== oldConn || relay.state !== 'online') {
     friend = null;

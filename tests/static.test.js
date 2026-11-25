@@ -195,7 +195,7 @@ test('番茄钟：右键小狗开始，时长和「休息算不算学习」在�
   assert.match(main, /label: '结束番茄钟', click: stopPomodoro/);
   // 弹窗只在 wait（休息结束）时出现；到休息时间（break）走的是小狗气泡
   assert.match(main, /if \(events\.includes\('wait'\)\) showRemindWindow\(\{ kind: 'focus',/);
-  assert.equal(main.match(/showRemindWindow\(\{/g).length, 2); // 另一个是连续摸鱼提醒
+  assert.equal(main.match(/showRemindWindow\(\{/g).length, 3); // 另外两个是连续摸鱼提醒、严格模式的「暂停时间到啦」
   // 休息结束后三个选择：重新开始 / 再休息一会 / 恢复默认模式。弹窗、右键菜单、托盘菜单里都能选
   assert.match(main, /ipcMain\.on\('pomodoro:resume', resumePomodoro\)/);
   assert.match(main, /ipcMain\.on\('pomodoro:rest', restMorePomodoro\)/);
@@ -204,7 +204,7 @@ test('番茄钟：右键小狗开始，时长和「休息算不算学习」在�
   assert.match(main, /if \(kind !== 'wait'\) closeRemindWindow\('focus'\);/); // 选完（或者番茄钟自己停了）窗口跟着关
   // 「休息结束啦」要等着选：回去学习不会把它关掉，摸鱼提醒也不会把它顶掉
   assert.match(main, /function closeSlackReminder\(\) \{\s*closeRemindWindow\('slack'\);/);
-  assert.match(main, /if \(remindWin && !remindWin\.isDestroyed\(\) && remindKind === 'focus'\) return;\s*showRemindWindow\(\{/);
+  assert.match(main, /if \(remindWin && !remindWin\.isDestroyed\(\) && remindKind !== 'slack'\) return;\s*if \(pomodoro\.paused\) return;\s*showRemindWindow\(\{/);
   assert.match(main, /petWin\.webContents\.send\('pomodoro-event',/);
   // 休息时间怎么计时：勾了整段算学习，没勾的话休息时摸鱼不算摸鱼
   assert.match(main, /tracker\.setRest\(pomodoro\.phase === 'break' \? \(config\.pomodoroBreakCounts \? 'study' : 'free'\) : null\)/);
@@ -244,6 +244,49 @@ test('番茄钟：右键小狗开始，时长和「休息算不算学习」在�
   // 小狗：等着点的时候倒计时那里显示「等你开始」，搭子的卡片上也有一行
   assert.match(pet, /if \(p\.phase === 'wait'\)/);
   assert.match(pet, /pomo\?\.phase === 'wait'/);
+});
+
+test('番茄钟严格模式：摸鱼时倒计时停着；能暂停 5 分钟，到点弹窗等着选「继续专注 / 5 分钟后再提醒 / 退出番茄钟」', () => {
+  const main = read('main.js');
+  // 设置里的开关，默认关；配置文件里是别的值就当没勾
+  assert.match(main, /pomodoroStrict: false,/);
+  assert.match(main, /pomodoroStrict: c\.pomodoroStrict === true,/);
+  assert.match(main, /pomodoroStrict: [^\n]*next\.pomodoroStrict/);
+  assert.match(read('renderer/panel.html'), /id="pomodoroStrict"/);
+  assert.match(read('renderer/settings.js'), /pomodoroStrict: \$\('pomodoroStrict'\)\.checked/);
+  // 计时规则拿得到「是不是严格模式」「这会儿是不是在摸鱼」
+  assert.match(main, /strict: config\.pomodoroStrict \}\)/);
+  assert.match(main, /slacking: tracker\.current\.category === 'slack'/);
+  // 暂停到点：弹窗等着选，不自己接着走；选完（或者番茄钟停了）窗口跟着关
+  assert.match(main, /if \(events\.includes\('pause-over'\)\) showRemindWindow\(\{ kind: 'pause',/);
+  assert.match(main, /if \(kind !== 'pause-over'\) closeRemindWindow\('pause'\);/);
+  // 三个动作：暂停 / 5 分钟后再提醒 / 继续专注。弹窗、面板、右键菜单、托盘菜单里都能点
+  for (const [ch, fn, api] of [['pomodoro:pause', 'pausePomodoro', 'pausePomodoro'], ['pomodoro:pause-more', 'pauseMorePomodoro', 'pauseMorePomodoro'], ['pomodoro:continue', 'continuePomodoro', 'continuePomodoro']]) {
+    assert.match(main, new RegExp(`ipcMain\\.on\\('${ch}', ${fn}\\)`));
+    assert.match(read('preload.js'), new RegExp(`${api}: \\(\\) => ipcRenderer\\.send\\('${ch}'\\)`));
+    assert.match(read('renderer/panel.js'), new RegExp(`buddy\\.${api}\\(\\)`));
+    assert.match(main, new RegExp(`click: ${fn} \\}`));
+  }
+  // 「暂停 5 分钟」只在严格模式的专注里有
+  assert.match(main, /\.\.\.\(focus && config\.pomodoroStrict \? \[\{ label: `暂停 \$\{POMO_PAUSE_MINUTES\} 分钟`, click: pausePomodoro \}\] : \[\]\),/);
+  // 发给搭子的状态里带上倒计时为什么停着
+  assert.match(main, /\.\.\.\(hold \? \{ hold \} : \{\}\)/);
+
+  // 弹窗：和另外两种共用一个窗口
+  const remind = read('renderer/remind.js');
+  const remindHtml = read('renderer/remind.html');
+  assert.match(remind, /const pause = kind === 'pause';/);
+  assert.match(remind, /buddy\.continuePomodoro\(\)/);
+  assert.match(remind, /buddy\.pauseMorePomodoro\(\)/);
+  for (const id of ['continue', 'pauseMore']) assert.match(remindHtml, new RegExp(`<button id="${id}"[^>]* hidden>`));
+  assert.match(remindHtml, /id="whatPause"[^>]* hidden>/);
+  assert.match(remindHtml, /id="quitPomodoro">退出番茄钟</);
+
+  // 小狗和面板：倒计时停着的时候不拿 endsAt 自己算（摸鱼时它一直在往后挪）
+  const pet = read('renderer/pet.js');
+  for (const hold of ['over', 'pause', 'slack']) assert.match(pet, new RegExp(`if \\(p\\.hold === '${hold}'\\)`));
+  assert.match(pet, /kind === 'freeze'/);
+  assert.match(read('renderer/panel.js'), /const left = hold \? Math\.max\(0, Math\.round\(num\(p\.leftSec\)\)\)/);
 });
 
 test('面板：一个窗口四页（今天 / 统计 / 计划 / 设置）；常用的入口在右键小狗的菜单里，托盘菜单留不常用的', () => {
