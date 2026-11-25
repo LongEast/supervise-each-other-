@@ -12,6 +12,8 @@
   --pet-scale: 1;
   --pet-w: calc(150px * var(--pet-scale));
   --pet-h: calc(131px * var(--pet-scale));
+  /* 缩放 100% 时头顶（小猫是耳朵尖）离小狗上边多远：番茄钟倒计时放在头顶上，气泡再给它让位置 */
+  --pomo-head: 23px;
 }
 
 * { box-sizing: border-box; }
@@ -137,14 +139,15 @@ body.dragging #pet, body.dragging .nametag { cursor: grabbing; }
 .state-slack .skin-cat .beans-r { display: none; } /* 右爪举着手机，肉垫朝里 */
 /* 猫耳朵比狗耳朵高：Zzz 和番茄钟倒计时都让一让 */
 [data-skin="cat"] .prop-zzz { transform: translate(6px, -2px); }
-[data-skin="cat"] .pomo { margin-top: -10px; }
+[data-skin="cat"] { --pomo-head: 19px; }
 
 /* ---------------- 番茄钟倒计时 ---------------- */
-/* 贴在小狗左上角的空白处；小狗缩小以后那里放不下，就往上挪一点。不挡鼠标 */
+/* 在小狗头顶正中，底边离头顶 2px，跟着小狗的大小一起上下挪。不挡鼠标 */
 .pomo {
   position: absolute;
-  left: calc(50% - var(--pet-w) / 2);
-  top: min(0px, calc((var(--pet-scale) - 1) * 40px));
+  left: 50%;
+  top: calc(var(--pet-scale) * var(--pomo-head) - 2px);
+  transform: translate(-50%, -100%);
   padding: 2px 8px 2px 6px;
   border-radius: var(--radius-full);
   background: var(--color-error);
@@ -306,6 +309,8 @@ body.dragging #pet, body.dragging .nametag { cursor: grabbing; }
   height: 14px;
   background: var(--card-bg);
 }
+/* 番茄钟开着的时候气泡往上让一让，小尖角刚好停在倒计时上面，不戳进去挡数字（21px 是名牌的高度；倒计时高 20px，尖角伸出来 10px） */
+#stage:has(.pomo:not(.hidden)) .bubble { bottom: calc(var(--pet-h) + max(21px, 55px - var(--pet-scale) * var(--pomo-head))); }
 .bubble b { color: var(--slack-ink); font-weight: var(--font-weight-semibold); }
 .bubble .sub { display: block; margin-top: 3px; font-size: 11px; color: var(--muted); }
 .bubble.self { border: 1.5px solid var(--slack); }

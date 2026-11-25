@@ -228,6 +228,9 @@ test('番茄钟：右键小狗开始，时长和「休息算不算学习」在�
   assert.match(pet, /buddy\.onPomodoro\(/);
   assert.match(pet, /setInterval\(renderPomo, 1000\)/);
   assert.match(read('renderer/pet.css'), /\.pomo \{[^}]*pointer-events: none;/); // 倒计时不挡鼠标，不然小狗那一角点不到
+  // 倒计时在小狗头顶正中；气泡在番茄钟开着时往上让，尖角不戳进倒计时里
+  assert.match(read('renderer/pet.css'), /\.pomo \{[^}]*left: 50%;[^}]*transform: translate\(-50%, -100%\);/);
+  assert.match(read('renderer/pet.css'), /#stage:has\(\.pomo:not\(\.hidden\)\) \.bubble \{ bottom: /);
   assert.match(read('preload.js'), /onPomodoro: on\('pomodoro-event'\)/);
 
   // 「休息结束啦」和「该学习啦」共用一个窗口
