@@ -171,7 +171,7 @@
     $('heroTime').textContent = time;
     $('heroSub').textContent = sub;
     $('heroFill').style.width = `${Math.round(Math.min(1, Math.max(0, fill)) * 100)}%`;
-    $('heroPet').classList.toggle('hidden', (state.petSkin || 'dog') !== 'dog');
+    for (const g of $('heroPet').querySelectorAll('[data-skin]')) g.classList.toggle('hidden', g.dataset.skin !== (state.petSkin || 'dog'));
   }
   setInterval(renderHero, 1000);
 

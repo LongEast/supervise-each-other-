@@ -49,24 +49,53 @@
           <div id="heroSub" class="hero-sub"></div>
           <div class="hero-bar"><div id="heroFill"></div></div>
           <div id="heroBtns" class="hero-btns"></div>
-          <!-- 装饰用，只画了默认形象；换成别的形象时不显示（panel.js 按 petSkin 藏起来） -->
+          <!-- 装饰用：桌面上是哪个形象这里就画哪个（panel.js 按 petSkin 只留一个 data-skin），都是抱着电脑学习的样子。画法和颜色跟 pet.html / pet.css 里的一样 -->
           <svg id="heroPet" class="hero-pet" aria-hidden="true" viewBox="0 0 160 140">
             <ellipse cx="80" cy="132" rx="48" ry="6" fill="rgba(0,0,0,0.12)" />
-            <path d="M112 104 C130 100 134 82 124 74 C120 86 114 94 104 96 Z" fill="#c98b54" />
-            <ellipse cx="80" cy="102" rx="38" ry="30" fill="#f2c38b" />
-            <ellipse cx="80" cy="108" rx="22" ry="20" fill="#fff1dc" />
-            <ellipse cx="64" cy="128" rx="10" ry="6" fill="#f2c38b" />
-            <ellipse cx="96" cy="128" rx="10" ry="6" fill="#f2c38b" />
-            <path d="M44 40 C30 44 28 72 40 80 C46 70 48 56 52 46 Z" fill="#c98b54" />
-            <path d="M116 40 C130 44 132 72 120 80 C114 70 112 56 108 46 Z" fill="#c98b54" />
-            <ellipse cx="80" cy="58" rx="38" ry="33" fill="#f2c38b" />
-            <ellipse cx="80" cy="72" rx="19" ry="13" fill="#fff1dc" />
-            <circle cx="56" cy="70" r="6" fill="#f7a7a0" opacity="0.55" />
-            <circle cx="104" cy="70" r="6" fill="#f7a7a0" opacity="0.55" />
-            <circle cx="66" cy="56" r="5" fill="#3a2a20" /><circle cx="67.6" cy="54.2" r="1.6" fill="#fff" />
-            <circle cx="94" cy="56" r="5" fill="#3a2a20" /><circle cx="95.6" cy="54.2" r="1.6" fill="#fff" />
-            <ellipse cx="80" cy="66" rx="4.5" ry="3.2" fill="#3a2a20" />
-            <path d="M80 69 L80 73 M80 73 Q76 77 73 74 M80 73 Q84 77 87 74" fill="none" stroke="#3a2a20" stroke-width="2" stroke-linecap="round" />
+            <g data-skin="dog">
+              <path d="M112 104 C130 100 134 82 124 74 C120 86 114 94 104 96 Z" fill="#c98b54" />
+              <ellipse cx="80" cy="102" rx="38" ry="30" fill="#f2c38b" />
+              <ellipse cx="80" cy="108" rx="22" ry="20" fill="#fff1dc" />
+              <ellipse cx="64" cy="128" rx="10" ry="6" fill="#f2c38b" />
+              <ellipse cx="96" cy="128" rx="10" ry="6" fill="#f2c38b" />
+              <path d="M44 40 C30 44 28 72 40 80 C46 70 48 56 52 46 Z" fill="#c98b54" />
+              <path d="M116 40 C130 44 132 72 120 80 C114 70 112 56 108 46 Z" fill="#c98b54" />
+              <ellipse cx="80" cy="58" rx="38" ry="33" fill="#f2c38b" />
+              <ellipse cx="80" cy="72" rx="19" ry="13" fill="#fff1dc" />
+              <circle cx="56" cy="70" r="6" fill="#f7a7a0" opacity="0.55" />
+              <circle cx="104" cy="70" r="6" fill="#f7a7a0" opacity="0.55" />
+              <circle cx="66" cy="56" r="5" fill="#3a2a20" /><circle cx="67.6" cy="54.2" r="1.6" fill="#fff" />
+              <circle cx="94" cy="56" r="5" fill="#3a2a20" /><circle cx="95.6" cy="54.2" r="1.6" fill="#fff" />
+              <ellipse cx="80" cy="66" rx="4.5" ry="3.2" fill="#3a2a20" />
+              <path d="M80 69 L80 73 M80 73 Q76 77 73 74 M80 73 Q84 77 87 74" fill="none" stroke="#3a2a20" stroke-width="2" stroke-linecap="round" />
+            </g>
+            <g data-skin="cat" class="hidden">
+              <path d="M104 120 C124 124 140 110 132 92" fill="none" stroke="#4a4a52" stroke-width="11" stroke-linecap="round" />
+              <path d="M104 120 C124 124 140 110 132 92" fill="none" stroke="#a9abb1" stroke-width="7" stroke-linecap="round" />
+              <g fill="#4a4a52" stroke="#4a4a52" stroke-width="4">
+                <ellipse cx="80" cy="106" rx="33" ry="25" /><ellipse cx="64" cy="127.5" rx="10" ry="6" /><ellipse cx="96" cy="127.5" rx="10" ry="6" />
+              </g>
+              <g fill="#fff">
+                <ellipse cx="80" cy="106" rx="33" ry="25" /><ellipse cx="64" cy="127.5" rx="10" ry="6" /><ellipse cx="96" cy="127.5" rx="10" ry="6" />
+              </g>
+              <path d="M60.5 129.5 v3.2 M65.5 130 v3.2 M94.5 130 v3.2 M99.5 129.5 v3.2" fill="none" stroke="#4a4a52" stroke-width="1.4" stroke-linecap="round" />
+              <g fill="#a9abb1" stroke="#4a4a52" stroke-width="2" stroke-linejoin="round">
+                <path d="M46.5 48 C45.5 41 46.5 33 48.5 28 Q50.5 21 57 24.5 C62 27 67 30 71 33.5 Z" />
+                <path d="M113.5 48 C114.5 41 113.5 33 111.5 28 Q109.5 21 103 24.5 C98 27 93 30 89 33.5 Z" />
+              </g>
+              <path d="M50.5 40 L51 31.5 Q51.8 27.5 56 29.5 L62 32.5 Z M109.5 40 L109 31.5 Q108.2 27.5 104 29.5 L98 32.5 Z" fill="#84868d" />
+              <clipPath id="heroCatHead"><ellipse cx="80" cy="61" rx="38.5" ry="34" /></clipPath>
+              <ellipse cx="80" cy="61" rx="38.5" ry="34" fill="#fff" />
+              <g clip-path="url(#heroCatHead)" fill="#a9abb1">
+                <path d="M30 20 L77 20 C76.5 34 76 46 73.5 54 C70 60 50 59 30 56 Z" />
+                <path d="M130 20 L83 20 C83.5 34 84 46 86.5 54 C90 60 110 59 130 56 Z" />
+              </g>
+              <ellipse cx="80" cy="61" rx="38.5" ry="34" fill="none" stroke="#4a4a52" stroke-width="2" />
+              <ellipse cx="62" cy="61" rx="7.5" ry="8.5" fill="#26262b" /><ellipse cx="60.6" cy="62.4" rx="5.4" ry="6.2" fill="#e6e37c" /><ellipse cx="63.2" cy="60.6" rx="5.2" ry="6.2" fill="#26262b" /><circle cx="65" cy="57.6" r="1.7" fill="#fff" />
+              <ellipse cx="98" cy="61" rx="7.5" ry="8.5" fill="#26262b" /><ellipse cx="96.6" cy="62.4" rx="5.4" ry="6.2" fill="#e6e37c" /><ellipse cx="99.2" cy="60.6" rx="5.2" ry="6.2" fill="#26262b" /><circle cx="101" cy="57.6" r="1.7" fill="#fff" />
+              <path d="M77.4 67 L82.6 67 L80 70 Z" fill="#f29aa9" />
+              <path d="M80 70.5 Q76.5 76 72 72.5 M80 70.5 Q83.5 76 88 72.5" fill="none" stroke="#26262b" stroke-width="2" stroke-linecap="round" />
+            </g>
             <path d="M60 104 L100 104 L104 124 L56 124 Z" fill="#5b6472" />
             <rect x="50" y="123" width="60" height="5" rx="2" fill="#8d96a3" />
             <circle cx="80" cy="114" r="2" fill="#a9e3ff" />

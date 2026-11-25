@@ -106,6 +106,10 @@ test('换形象：右键菜单和面板的设置页里能选，选择会记住�
     if (id !== 'dog') assert.ok(css.includes(`[data-skin="${id}"] .skin-${id} { display: inline; }`), `${id} 选中后要显示出来`);
   });
   assert.match(css, /\.skin-cat, \[data-skin="cat"\] \.skin-dog \{ display: none; \}/); // 一次只显示一套
+  // 面板「今天」页番茄钟卡片里画的也跟着形象换：每个形象一组，默认只显示小狗
+  const panelHtml = read('renderer/panel.html');
+  for (const id of skins) assert.ok(panelHtml.includes(`<g data-skin="${id}"${id === 'dog' ? '' : ' class="hidden"'}>`), `面板里要有 ${id} 的画`);
+  assert.match(read('renderer/panel.js'), /\$\('heroPet'\)\.querySelectorAll\('\[data-skin\]'\)\) g\.classList\.toggle\('hidden', g\.dataset\.skin !== \(state\.petSkin \|\| 'dog'\)\)/);
   assert.equal(html.match(/<svg /g).length, 1); // 两套画在同一个 #pet 里：拖动、滚轮、右键、点击都只接了它
 });
 
