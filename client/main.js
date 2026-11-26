@@ -6,7 +6,7 @@ const path = require('path');
 const { ActivityTracker, localDate } = require('./activity');
 const { RelayClient } = require('./relay');
 const { DEFAULT_RULES } = require('./classifier');
-const { clampScale, petSize, rescaleBounds, SCALE_STEP } = require('./pet-geometry');
+const { clampScale, petSize, rescaleBounds, fitOnScreen, SCALE_STEP } = require('./pet-geometry');
 const { SlackReminder, clampRemindMinutes, remindOptions, REMIND_DEFAULT, REMIND_OPTIONS } = require('./reminder');
 const { Pomodoro, clampFocusMinutes, clampBreakMinutes, POMO_FOCUS_DEFAULT, POMO_BREAK_DEFAULT, POMO_PAUSE_MINUTES } = require('./pomodoro');
 const { JournalStore, JournalSync, duePrompt, markPrompted, snooze, snoozesLeft, progress, toMinutes, isDate, addDays } = require('./journal');
@@ -554,10 +554,12 @@ function startExtServer() {
 
 // ---------------- 窗口 ----------------
 // 窗口大小跟着小狗的缩放变，见 pet-geometry.js
+const workAreas = () => screen.getAllDisplays().map((d) => d.workArea);
 function createPetWindow() {
   const wa = screen.getPrimaryDisplay().workArea;
   const size = petSize(config.petScale);
-  const pos = config.petPos || { x: wa.x + wa.width - size.width - 24, y: wa.y + wa.height - size.height };
+  // 存下来的位置可能已经在屏幕外了（拔了副屏、改了分辨率），挪回看得见的地方
+  const pos = fitOnScreen(config.petPos || { x: wa.x + wa.width - size.width - 24, y: wa.y + wa.height - size.height }, config.petScale, workAreas());
   petWin = new BrowserWindow({
     width: size.width,
     height: size.height,
@@ -579,6 +581,22 @@ function createPetWindow() {
   petWin.on('closed', () => (petWin = null));
 }
 
+// 小狗跑到屏幕外了就拉回来：拔掉副屏、改分辨率 / 缩放、拖出屏幕、从托盘叫出来时都查一下
+function keepPetOnScreen() {
+  if (!petWin || petWin.isDestroyed()) return;
+  const [x, y] = petWin.getPosition();
+  const b = fitOnScreen({ x, y }, config.petScale, workAreas());
+  if (b.x === x && b.y === y) return;
+  petWin.setBounds(b);
+  config.petPos = { x: b.x, y: b.y };
+  saveConfigSoon();
+}
+function showPet() {
+  if (!petWin || petWin.isDestroyed()) return createPetWindow();
+  keepPetOnScreen();
+  petWin.showInactive();
+}
+
 // 调小狗的大小：窗口跟着变，小狗的脚留在原地
 function setPetScale(next) {
   const scale = clampScale(next);
@@ -590,6 +608,7 @@ function setPetScale(next) {
     config.petPos = { x: b.x, y: b.y };
   }
   config.petScale = scale;
+  keepPetOnScreen(); // 在屏幕边上放大，可能会顶出去
   saveConfigSoon();
   pushState();
   updateTray();
@@ -689,9 +708,8 @@ function updateTray() {
       {
         label: `${petWin?.isVisible() ? '隐藏' : '显示'}${pet}`,
         click: () => {
-          if (!petWin) createPetWindow();
-          else if (petWin.isVisible()) petWin.hide();
-          else petWin.showInactive();
+          if (petWin?.isVisible()) petWin.hide();
+          else showPet();
           updateTray();
         },
       },
@@ -716,7 +734,8 @@ function createTray() {
   trayIconSkin = config.petSkin;
   tray = new Tray(img.isEmpty() ? nativeImage.createEmpty() : img);
   tray.on('click', () => {
-    if (petWin) petWin.isVisible() ? petWin.hide() : petWin.showInactive();
+    if (petWin?.isVisible()) petWin.hide();
+    else showPet();
     updateTray();
   });
   updateTray();
@@ -819,6 +838,7 @@ ipcMain.on('pet:drag', (_e, phase) => {
     dragFrom = null;
     const [x, y] = petWin.getPosition();
     config.petPos = { x, y };
+    keepPetOnScreen(); // 拖出屏幕就弹回来
     saveConfig();
   }
 });
@@ -937,7 +957,7 @@ ipcMain.on('toggle-pause', togglePause);
 
 // ---------------- 启动 ----------------
 app.on('second-instance', () => {
-  if (petWin) petWin.show();
+  showPet();
   openPanel();
 });
 app.on('window-all-closed', (e) => e.preventDefault()); // 托盘常驻
@@ -951,6 +971,7 @@ app.whenReady().then(() => {
   startExtServer();
   createTray();
   createPetWindow();
+  for (const ev of ['display-removed', 'display-metrics-changed']) screen.on(ev, keepPetOnScreen);
   tracker.start();
   if (config.serverUrl && config.room && config.name && config.secret) relay.connect(config);
   else openSettings();

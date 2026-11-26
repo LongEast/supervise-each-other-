@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { clampScale, petSize, rescaleBounds, SCALE_MIN, SCALE_MAX, SCALE_STEP } = require('../client/pet-geometry');
+const { clampScale, petSize, rescaleBounds, fitOnScreen, SCALE_MIN, SCALE_MAX, SCALE_STEP } = require('../client/pet-geometry');
 
 test('clampScale：限制在范围内，0.05 一档，乱七八糟的输入当 100%', () => {
   assert.equal(clampScale(1), 1);
@@ -51,4 +51,43 @@ test('pet.css 里小狗的基准尺寸和 pet-geometry.js 一致（窗口大小�
   const geo = fs.readFileSync(path.join(__dirname, '..', 'client', 'pet-geometry.js'), 'utf8');
   assert.match(geo, /PET_BASE_W = 150;/);
   assert.match(geo, /PET_BASE_H = 131;/);
+});
+
+test('fitOnScreen：位置本来就看得见的不动', () => {
+  const wa = [{ x: 0, y: 0, width: 1920, height: 1040 }];
+  for (const s of [0.6, 1, 2]) {
+    const pos = { x: 1500, y: 1040 - petSize(s).height };
+    const b = fitOnScreen(pos, s, wa);
+    assert.deepEqual({ x: b.x, y: b.y }, pos, `s=${s}`);
+    assert.deepEqual({ width: b.width, height: b.height }, petSize(s));
+  }
+  // 小狗贴着屏幕上沿时，窗口上面透明的那截伸到屏幕外是正常的，也不动
+  const top = { x: 100, y: -200 };
+  assert.deepEqual(fitOnScreen(top, 1, wa).y, top.y);
+});
+
+test('fitOnScreen：跑到屏幕上面去了（副屏拔掉后存下的 y=-458）拉回来，小狗和名牌整个看得见', () => {
+  const wa = { x: 0, y: 0, width: 1280, height: 752 };
+  const b = fitOnScreen({ x: 1060, y: -458 }, 0.6, [wa]);
+  const petBottom = b.y + b.height; // 名牌底边就是窗口底边
+  const petTop = petBottom - (Math.round(131 * 0.6) + 24);
+  assert.ok(petTop >= wa.y && petBottom <= wa.y + wa.height, JSON.stringify(b));
+  const cx = b.x + b.width / 2;
+  assert.ok(cx - 75 >= wa.x && cx + 75 <= wa.x + wa.width, JSON.stringify(b));
+});
+
+test('fitOnScreen：拔掉右边的副屏后挪到主屏；还在副屏上的留在副屏', () => {
+  const main = { x: 0, y: 0, width: 1920, height: 1040 };
+  const side = { x: 1920, y: 0, width: 1920, height: 1040 };
+  const onSide = { x: 3000, y: 600 };
+  assert.deepEqual(fitOnScreen(onSide, 1, [main, side]).x, onSide.x);
+  const b = fitOnScreen(onSide, 1, [main]);
+  assert.ok(b.x + b.width / 2 + 75 <= main.width && b.y === onSide.y, JSON.stringify(b));
+  // 屏幕在左边、坐标是负的也行
+  const left = { x: -1920, y: 0, width: 1920, height: 1040 };
+  assert.ok(fitOnScreen({ x: -5000, y: 600 }, 1, [left, main]).x >= -1920 - 65);
+});
+
+test('fitOnScreen：拿不到屏幕信息时原样返回', () => {
+  assert.deepEqual(fitOnScreen({ x: 5, y: 6 }, 1, []), { x: 5, y: 6, ...petSize(1) });
 });
